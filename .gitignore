@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Environment files (only the example is committed)
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Private: must never be committable
+docs/private/
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Impeccable's Windows binary (its launcher re-downloads a checksum-verified copy)
+.claude/skills/impeccable/scripts/bin/
