@@ -62,6 +62,46 @@ Engineering course uses the same host.
 such as the Web3Forms key are set in Cloudflare as well as `.env`, and `NEXT_PUBLIC_*` values
 are public by definition.
 
+## ADR-005: Static export and a single CI gate
+
+**Context.** The site must be real HTML for crawlers and readers without JavaScript, and needs no
+server at runtime. Work goes straight to `main` (ADR-002), so CI is the only check before a
+deployment. A deployment needs one clear answer to "did everything pass?", and that answer must
+stay reliable as checks are added.
+
+**Decision.**
+- Next.js builds with `output: 'export'`, `images.unoptimized` and `trailingSlash`, so the result
+  is the plain files in `out/`. Pages stay Server Components, rendered at build time, unless they
+  need state, effects, event handlers or browser APIs.
+- Fonts use `next/font/google`, which downloads them at build time and serves them from our own
+  origin. Visitors never contact Google.
+- CI runs `lint`, `typecheck`, `unit` and `build` in parallel. `e2e` tests the artifact from
+  `build`, so it covers the exact files a deployment will publish.
+- A separate `ci-ok` job needs all the others, runs with `if: always()` and fails unless every
+  result is `success`. Slice 1b depends on this job only.
+- Actions are pinned to full commit SHAs with a version comment, because a tag can be moved and a
+  commit SHA cannot. The token is `contents: read`.
+
+**Consequences.**
+- A job whose `needs` failed is skipped, and a skipped required check counts as passing. That is
+  why the gate needs `if: always()`, and why it also treats `skipped` as a failure.
+- A new check changes only the `needs` list of `ci-ok`, not the deployment or the branch rules.
+- Features that need a server are unavailable: Next.js headers, redirects, Server Actions, ISR and
+  the image optimizer. Security headers will have to come from the host.
+- The build needs network access to fetch the fonts.
+- `next-env.d.ts` is gitignored, and `LayoutProps` only exists once route types are generated, so
+  `pretypecheck` runs `next typegen`. Without it the CI `typecheck` job would fail.
+- `next.config.ts` sets `agentRules: false`, because `next dev` otherwise creates `AGENTS.md` when
+  it detects an AI agent. Agent rules live in `CLAUDE.md`.
+- Latest versions are not all usable. Each cap below can be lifted once its cause goes away:
+
+| Package | Held at | Latest | Cause |
+|---|---|---|---|
+| `typescript` | `~6.0.3` | 7.0.2 | `typescript-eslint`, inside `eslint-config-next`, requires `<6.1.0` |
+| `eslint` | `^9.39.5` | 10.14.0 | `eslint-plugin-react`, `-import` and `-jsx-a11y` stop at ESLint 9. npm reports 9.39.5 as no longer supported, so revisit this when those plugins add ESLint 10 |
+| `jsdom` | `^29.1.1` | 31.0.0 | jsdom 30 and later need Node `^24.15`; the development machine runs 24.8.0 |
+| `@types/node` | `^24` | 26.x | Matches the Node major in `.nvmrc` |
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
@@ -84,13 +124,66 @@ against.
 | `scripts/data/font-index.json` | Not stated | Built by Impeccable from the Google Fonts catalog | Family names and numeric fingerprints only, no font files |
 | `scripts/bin/` engine v0.1.18 (Windows `.exe`) | Not checked | `pbakaus/impeccable` | Gitignored; the launcher re-downloads a checksum-verified copy |
 
+### Fonts (shipped in `out/`)
+
+| Item | Licence | Notes |
+|---|---|---|
+| Space Grotesk | SIL OFL 1.1 | Self-hosted through `next/font/google` |
+| Geist | SIL OFL 1.1 | Self-hosted through `next/font/google` |
+| Geist Mono | SIL OFL 1.1 | Self-hosted through `next/font/google` |
+
+### npm dependencies: runtime
+
+Versions are the ones installed from `package-lock.json`.
+
+| Package | Version | Licence |
+|---|---|---|
+| `next` | 16.4.5 | MIT |
+| `react` | 19.3.1 | MIT |
+| `react-dom` | 19.3.1 | MIT |
+
+### npm dependencies: development only (never shipped in `out/`)
+
+| Package | Version | Licence |
+|---|---|---|
+| `@axe-core/playwright` | 4.14.0 | MPL-2.0 |
+| `@playwright/test` | 1.65.0 | Apache-2.0 |
+| `@tailwindcss/postcss` | 4.3.4 | MIT |
+| `@testing-library/dom` | 10.4.2 | MIT |
+| `@testing-library/jest-dom` | 7.0.1 | MIT |
+| `@testing-library/react` | 16.3.3 | MIT |
+| `@types/node` | 24.19.2 | MIT |
+| `@types/react` | 19.3.0 | MIT |
+| `@types/react-dom` | 19.3.0 | MIT |
+| `@vitejs/plugin-react` | 6.2.1 | MIT |
+| `eslint` | 9.39.5 | MIT |
+| `eslint-config-next` | 16.4.5 | MIT |
+| `jsdom` | 29.1.1 | MIT |
+| `serve` | 14.2.6 | MIT |
+| `tailwindcss` | 4.3.4 | MIT |
+| `typescript` | 6.0.3 | Apache-2.0 |
+| `vite` | 8.3.6 | MIT |
+| `vitest` | 5.1.0 | MIT |
+
+### Transitive npm packages
+
+514 packages were installed on Windows and checked from `package-lock.json`. Almost all are MIT,
+Apache-2.0, ISC or BSD. Other platforms install their own native binaries, which were not checked
+individually. These need a note:
+
+| Package | Licence | Why it is acceptable |
+|---|---|---|
+| `axe-core`, `@axe-core/playwright` | MPL-2.0 | Development only, and used unmodified |
+| `lightningcss`, `lightningcss-win32-x64-msvc` | MPL-2.0 | Build tool, used unmodified; its output is our CSS |
+| `@img/sharp-win32-x64` | Apache-2.0 AND LGPL-3.0-or-later | Optional dependency of `next`. Static export does not use the image optimizer, and nothing from it is in `out/` |
+| `caniuse-lite` | CC-BY-4.0 | Browser data used at build time; not in `out/` |
+| `@csstools/color-helpers`, `@csstools/css-syntax-patches-for-csstree` | MIT-0 | Development only; permissive |
+| `language-subtag-registry`, `mdn-data` | CC0-1.0 | Development only; public-domain dedication |
+
 ### Planned (not in the repository yet)
 
 | Item | Licence | Status |
 |---|---|---|
-| Space Grotesk | SIL OFL 1.1 | Planned, self-hosted |
-| Geist | SIL OFL 1.1 | Planned, self-hosted |
-| Geist Mono | SIL OFL 1.1 | Planned, self-hosted |
 | GSAP | GSAP Standard License (free, not open source) | Planned, verify at install |
 | Phosphor or Lucide icons | Open licence | Planned, verify at install |
 | Simple Icons | Open licence; logos are trademarks used only to name the technology | Planned, verify at install |

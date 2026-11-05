@@ -1,0 +1,48 @@
+/* source("..") limits class scanning to src/. Without it, Tailwind would also
+   scan the Markdown in .claude/skills and generate classes nothing uses. */
+@import "tailwindcss" source("..");
+
+/* Layer 1: primitives. The raw brand palette (BRIEF §7).
+   `static` always emits these variables, because the semantic layer below uses
+   them through var() rather than through utility classes. */
+@theme static {
+  /* Removes Tailwind's default palette, so only brand colours exist. */
+  --color-*: initial;
+
+  --color-pine-950: #080b0c;
+  --color-pine-900: #0c1113;
+  --color-pine-850: #101619;
+  --color-pine-800: #151d20;
+
+  --color-sage-700: #3a564e;
+  --color-sage-500: #52796f;
+  --color-sage-200: #9ec8b5;
+
+  --color-mist-50: #f6f7f5;
+  --color-mist-100: #e7ebe6;
+  --color-mist-300: #aebcb2;
+  --color-mist-600: #5c6b64;
+  --color-mist-900: #1d2a27;
+}
+
+/* Layer 2: semantic tokens. Components use these names, never a primitive, so
+   a theme switch only has to redefine the three variables here. */
+:root {
+  color-scheme: dark;
+  --surface: var(--color-pine-900);
+  --text: var(--color-mist-50);
+  --accent: var(--color-sage-200);
+}
+
+/* `inline` keeps the var() reference in the generated utilities, so bg-surface
+   follows --surface at runtime instead of freezing its value at build time. */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-accent: var(--accent);
+
+  /* These variables are set on <html> by next/font in layout.tsx. */
+  --font-display: var(--font-space-grotesk);
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+}

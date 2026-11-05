@@ -3,7 +3,7 @@
 My portfolio: a desktop operating system that runs in the browser, built from scratch.
 My projects, story, skills, CV and contact are apps on the desktop.
 
-**Status:** in development. There is no application code yet.
+**Status:** in development. A placeholder page and CI are in place; the OS itself is not built yet.
 
 ## Planned stack
 
@@ -16,6 +16,6 @@ My projects, story, skills, CV and contact are apps on the desktop.
 
 - Code: [MIT](LICENSE)
 - Writing, photos, CVs, logo and design assets: [all rights reserved](LICENSE-CONTENT.md)
-- Third-party skills keep their own licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- Third-party skills and fonts keep their own licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 Built with AI assistance (Claude Code); every change is reviewed and committed by me.
