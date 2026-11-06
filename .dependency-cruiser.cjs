@@ -42,6 +42,33 @@ module.exports = {
       to: { path: "^(src/(app|apps|ui)/|node_modules/(react|react-dom|next|gsap)/)" },
     },
     {
+      name: "routing-rules-stay-pure",
+      comment:
+        "The rules that connect a URL to the desktop are plain functions, tested without a browser. " +
+        "They may read the domain and nothing further out.",
+      severity: "error",
+      from: { path: "^src/os/routing/" },
+      to: { pathNot: "^(src/os/(routing|domain)/|node_modules/vitest/)" },
+    },
+    {
+      name: "client-island-has-no-translation-runtime",
+      comment:
+        "ADR-011: the server resolves every string and the browser receives plain text. An import " +
+        "here would ship the next-intl message runtime in First Load JS.",
+      severity: "error",
+      from: { path: "^src/ui/", pathNot: "\\.test\\.tsx?$" },
+      to: { path: "^(src/i18n/|node_modules/(next-intl|use-intl)/)" },
+    },
+    {
+      name: "registry-stays-readable-on-the-server",
+      comment:
+        "The routes read the registry in a Server Component, where client icons crash, because " +
+        "they call createContext.",
+      severity: "error",
+      from: { path: "^src/apps/registry\\.ts$" },
+      to: { path: "^(src/ui/|node_modules/(react|@phosphor-icons)/)" },
+    },
+    {
       name: "only-the-store-and-its-hooks-use-zustand",
       comment: "Keeps the state library behind one adapter, so components cannot grow a second store.",
       severity: "error",

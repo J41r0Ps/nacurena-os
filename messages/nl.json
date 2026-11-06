@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "homeTitle": "Jairo Nacurena",
+    "homeDescription": "Het portfolio van Jairo Nacurena: NacurenaOS, een desktopbesturingssysteem dat in de browser draait, waarin projecten, verhaal, cv en contact apps zijn.",
+    "appTitle": "{app} · Jairo Nacurena"
+  },
+  "apps": {
+    "projects": {
+      "title": "Projecten",
+      "body": "Projecten is nog niet gebouwd.",
+      "description": "Projecten van Jairo Nacurena, student Toegepaste Informatica, in NacurenaOS."
+    },
+    "documents": {
+      "title": "Documenten",
+      "body": "Documenten is nog niet gebouwd.",
+      "description": "Casestudy's en het cv van Jairo Nacurena, in NacurenaOS."
+    }
+  },
+  "desktop": {
+    "appsLabel": "Apps",
+    "contactLabel": "Contact",
+    "email": "E-mail"
+  },
+  "taskbar": {
+    "openApps": "Geopende apps",
+    "minimised": "{app}, geminimaliseerd"
+  },
+  "startMenu": {
+    "label": "Start"
+  },
+  "window": {
+    "minimise": "{app} minimaliseren",
+    "maximise": "{app} maximaliseren",
+    "restore": "{app} herstellen",
+    "close": "{app} sluiten"
+  },
+  "notFound": {
+    "windowTitle": "Niet gevonden",
+    "title": "Deze pagina bestaat niet",
+    "body": "Het adres bevat misschien een typefout, of de pagina is verplaatst.",
+    "pageTitle": "Pagina niet gevonden · Jairo Nacurena",
+    "desktop": "Naar het bureaublad",
+    "linksLabel": "Apps"
+  }
+}

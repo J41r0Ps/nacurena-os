@@ -1,6 +1,9 @@
 import { memo, useCallback, useId, useLayoutEffect, useRef, type KeyboardEvent } from "react";
-import { appById } from "@/apps/registry";
+import { appById, closesOnEscape } from "@/apps/registry";
 import type { Position, WindowId } from "@/os/domain";
+import { pathOf } from "@/os/routing/desktopAddress";
+import { URL_WINDOW_ID } from "@/os/store/desktopStore";
+import { appIcons } from "@/ui/desktop/appIcons";
 import { useDesktopShell, useDesktopStore } from "@/ui/desktop/desktopContext";
 import { SURFACE_ATTRIBUTE } from "@/ui/desktop/desktopShell";
 import { playOpen } from "@/ui/motion/motion";
@@ -9,6 +12,9 @@ import { usePointerGesture } from "./usePointerGesture";
 import { WindowControls } from "./WindowControls";
 
 const surfaceAttribute = { [SURFACE_ATTRIBUTE]: "" };
+
+/** Lets CSS fit the static window to a phone before JavaScript has measured anything. */
+const staticWindowAttribute = { "data-static-window": "" };
 
 /**
  * One window. It takes only an id and selects its own data, so dragging one window re-renders
@@ -55,7 +61,8 @@ export const WindowFrame = memo(function WindowFrame({ id }: { readonly id: Wind
   const { state } = appWindow;
   const bounds = appWindow.displayBounds(viewport);
   const fillsViewport = state === "maximised" || isCompact;
-  const AppIcon = app.icon;
+  const AppIcon = appIcons[app.messageKey];
+  const strings = shell.strings.apps[app.id];
 
   const toggleMaximise = (): void => {
     const { maximiseWindow, restoreWindow } = store.getState();
@@ -64,11 +71,14 @@ export const WindowFrame = memo(function WindowFrame({ id }: { readonly id: Wind
   };
 
   const handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") shell.closeWithoutMotion(id);
+    if (event.key === "Escape" && closesOnEscape(app)) {
+      shell.closeWithoutMotion(id);
+    }
   };
 
   return (
     <section
+      {...(id === URL_WINDOW_ID ? staticWindowAttribute : undefined)}
       ref={registerElement}
       role="dialog"
       aria-labelledby={titleId}
@@ -119,11 +129,12 @@ export const WindowFrame = memo(function WindowFrame({ id }: { readonly id: Wind
           >
             <AppIcon size={16} aria-hidden="true" className="shrink-0" />
             <h2 id={titleId} className="truncate">
-              {app.title}
+              {strings.title}
             </h2>
           </div>
           <WindowControls
-            title={app.title}
+            strings={strings}
+            closeHref={pathOf({ locale: shell.locale, appId: null })}
             isMaximised={state === "maximised"}
             canMaximise={!isCompact}
             onMinimise={() => store.getState().minimiseWindow(id)}
@@ -136,7 +147,7 @@ export const WindowFrame = memo(function WindowFrame({ id }: { readonly id: Wind
             fillsViewport ? "" : "rounded-b-window"
           }`}
         >
-          <p>{app.body}</p>
+          <p>{strings.body}</p>
         </div>
       </div>
       {canDrag && <ResizeHandles id={id} />}

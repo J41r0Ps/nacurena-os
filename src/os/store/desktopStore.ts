@@ -11,6 +11,7 @@ import {
   type ResizeEdge,
   type WindowId,
   type WindowIdGenerator,
+  createWindowId,
 } from "@/os/domain";
 import { loadDesktop, saveDesktop, type GetStorage } from "./desktopPersistence";
 
@@ -20,8 +21,20 @@ export const SAVE_DELAY_MS = 200;
 /** Only a placeholder: `hydrate` replaces it with the measured work area after mount. */
 const INITIAL_VIEWPORT = { width: 1280, height: 720 };
 
+/**
+ * The id of the window that a URL opens in the static HTML. It is fixed, because the server and
+ * the first client render must match, and a random id in a render would be a hydration mismatch.
+ */
+export const URL_WINDOW_ID: WindowId = (() => {
+  const id = createWindowId("url-window");
+  if (!id.ok) throw new Error("URL_WINDOW_ID must be a valid window id");
+  return id.value;
+})();
+
 export interface DesktopDependencies {
   readonly apps: readonly AppDefinition[];
+  /** The app the page's URL names. It is open from the very first render. */
+  readonly initialApp?: AppDefinition;
   readonly generateId: WindowIdGenerator;
   readonly getStorage: GetStorage;
   /** Runs right after the domain committed, before React has updated the page. */
@@ -36,6 +49,10 @@ export interface DesktopState {
   readonly manager: WindowManager;
   /** Loads the saved desktop and starts saving. Returns the function that stops saving. */
   hydrate(width: number, height: number): () => void;
+  /** Goes to an app by its address: focuses a window it already has, or opens one. */
+  showApp(appId: AppId): void;
+  /** Goes to the locale root, where no app has focus, so every window is minimised. */
+  showDesktop(): void;
   /** Returns the window that ended up focused, or null if the app is unknown. */
   openApp(appId: AppId): WindowId | null;
   focusWindow(id: WindowId): void;
@@ -100,8 +117,19 @@ const startSaving = (store: DesktopStore, getStorage: GetStorage): (() => void) 
   };
 };
 
+/** Opens the URL's app before anything is measured, so it is part of the static HTML. */
+const managerWith = (initialApp: AppDefinition | undefined): WindowManager => {
+  const empty = WindowManager.create(initialViewport());
+  if (initialApp === undefined) return empty;
+
+  const opened = empty.openApp(initialApp, () => URL_WINDOW_ID);
+  if (!opened.ok) throw new Error("A new desktop must accept the app in its URL");
+  return opened.value.manager;
+};
+
 export const createDesktopStore = ({
   apps,
+  initialApp,
   generateId,
   getStorage,
   onEvents,
@@ -119,13 +147,28 @@ export const createDesktopStore = ({
       onEvents?.(events);
     };
 
+    /** Keeps the id of the static window, so React keeps its element, unless a saved one has it. */
+    const urlWindowId = (manager: WindowManager): WindowIdGenerator =>
+      manager.windows.some((window) => window.id === URL_WINDOW_ID)
+        ? generateId
+        : () => URL_WINDOW_ID;
+
+    /** The URL wins over the saved layout. Its events are dropped, so nothing animates. */
+    const withUrlApp = (manager: WindowManager): WindowManager => {
+      if (initialApp === undefined) return manager;
+      const shown = manager.showApp(initialApp, urlWindowId(manager));
+      if (shown.ok) return shown.value.manager;
+      reportRefusal(shown.error);
+      return manager;
+    };
+
     return {
-      manager: WindowManager.create(initialViewport()),
+      manager: managerWith(initialApp),
 
       hydrate(width, height) {
         // A hidden tab can measure 0 × 0. The ResizeObserver corrects the viewport later.
         const viewport = viewportOf(width, height) ?? get().manager.viewport;
-        set({ manager: loadDesktop(getStorage, apps, viewport) });
+        set({ manager: withUrlApp(loadDesktop(getStorage, apps, viewport)) });
         // Saving starts only here, so the empty first state can never overwrite a saved desktop.
         return startSaving(store, getStorage);
       },
@@ -139,6 +182,14 @@ export const createDesktopStore = ({
         apply(get().manager.openApp(app, generateId));
         return get().manager.focusedWindowId;
       },
+
+      showApp(appId) {
+        const app = apps.find((candidate) => candidate.id === appId);
+        if (app === undefined) reportRefusal({ code: "UnknownApp", appId });
+        else apply(get().manager.showApp(app, generateId));
+      },
+
+      showDesktop: () => apply(get().manager.showDesktop()),
 
       focusWindow: (id) => apply(get().manager.focusWindow(id)),
 

@@ -102,12 +102,30 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* The window a URL opens is drawn for a 1280 × 720 placeholder, because the build cannot measure
+   the screen. On a phone that would overflow until JavaScript runs, and forever without it, so it
+   fills the work area, as every window does in a compact viewport. !important is needed to beat
+   the inline bounds, which React owns. */
+@media (max-width: 767.98px) {
+  [data-static-window] {
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+  }
+}
+
 /* The keyboard focus ring (DESIGN §3), separate from a window's focused state. */
 @utility focus-ring {
   &:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
+}
+
+/* A mask, so the logo takes the colour of its text and its paths stay out of the JavaScript. */
+@utility jn-logo {
+  background-color: currentColor;
+  mask: url("/brand/jn-logo.svg") center / contain no-repeat;
 }
 
 /* Hover changes colour only, and pressing scales slightly (DESIGN §6). Tailwind's
@@ -121,5 +139,41 @@
     &:active {
       scale: 0.97;
     }
+  }
+}
+
+/* DESIGN §6. CSS and not GSAP: GSAP loads late and the menu must not wait for it, nothing here is
+   measured at runtime, and a CSS transition can reverse halfway. It stays mounted while closed so
+   the exit can play, and `visibility` keeps its links out of the tab order. */
+.start-menu {
+  transform-origin: bottom left;
+  opacity: 0;
+  scale: 0.98;
+  visibility: hidden;
+  transition:
+    opacity 120ms var(--ease-out),
+    scale 0s linear 120ms,
+    visibility 0s linear 120ms;
+}
+
+.start-menu[data-open="true"] {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition:
+    opacity 160ms var(--ease-out),
+    scale 160ms var(--ease-out),
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start-menu {
+    scale: 1;
+  }
+
+  .start-menu[data-open="true"] {
+    transition:
+      opacity 120ms var(--ease-out),
+      visibility 0s;
   }
 }

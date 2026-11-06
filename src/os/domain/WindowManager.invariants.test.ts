@@ -472,3 +472,102 @@ describe("opening windows", () => {
     expect(manager.windows.map((window) => window.id)).toEqual(["a", "b"]);
   });
 });
+
+describe("showing an app", () => {
+  it("INV-22: opens a window, focused, when the app has none", () => {
+    const manager = after(emptyManager().showApp(multi, () => id("a")));
+
+    expect(manager.windows).toHaveLength(1);
+    expect(manager.focusedWindowId).toBe("a");
+  });
+
+  it("INV-22: creates nothing for a multi-instance app that already has a window", () => {
+    const opened = after(emptyManager().openApp(multi, () => id("a")));
+    const generator = sequentialWindowIds("unused");
+
+    const shown = unwrap(opened.showApp(multi, generator));
+
+    expect(shown.manager).toBe(opened);
+    expect(shown.events).toEqual([]);
+  });
+
+  it("INV-22: focuses the topmost window of the app, not the first one opened", () => {
+    const generator = sequentialWindowIds();
+    const twoDocuments = after(
+      after(emptyManager().openApp(multi, generator)).openApp(multi, generator),
+    );
+    const behind = after(twoDocuments.openApp(single, () => id("other")));
+
+    const shown = after(behind.showApp(multi, generator));
+
+    expect(shown.windows).toHaveLength(3);
+    expect(shown.focusedWindowId).toBe("window-2");
+  });
+
+  it("INV-22: restores the app's window when all of them are minimised", () => {
+    const opened = after(emptyManager().openApp(multi, () => id("a")));
+    const minimised = after(opened.minimiseWindow(id("a")));
+
+    const shown = after(minimised.showApp(multi, () => id("new")));
+
+    expect(shown.windows).toHaveLength(1);
+    expect(shown.focusedWindowId).toBe("a");
+    expect(windowOf(shown, id("a")).state).toBe("normal");
+  });
+
+  it("INV-22: prefers a visible window over a minimised one that is higher", () => {
+    const generator = sequentialWindowIds();
+    const twoDocuments = after(
+      after(emptyManager().openApp(multi, generator)).openApp(multi, generator),
+    );
+    const topMinimised = after(twoDocuments.minimiseWindow(id("window-2")));
+    const behind = after(topMinimised.openApp(single, () => id("other")));
+
+    const shown = after(behind.showApp(multi, generator));
+
+    expect(shown.focusedWindowId).toBe("window-1");
+    expect(windowOf(shown, id("window-2")).state).toBe("minimised");
+  });
+});
+
+describe("showing the desktop", () => {
+  it("INV-23: leaves no visible window and no focus", () => {
+    const manager = after(desktopWith("a", "b", "c").showDesktop());
+
+    expect(manager.windows.every((window) => !window.isVisible)).toBe(true);
+    expect(manager.focusedWindowId).toBeNull();
+    expect(violations(manager)).toEqual([]);
+  });
+
+  it("INV-23: keeps every window, so nothing is lost", () => {
+    const manager = after(desktopWith("a", "b").showDesktop());
+
+    expect(manager.windows.map((window) => window.id)).toEqual(["a", "b"]);
+  });
+
+  it("INV-23: a maximised window comes back maximised", () => {
+    const maximised = after(desktopWith("a").maximiseWindow(id("a")));
+
+    const shown = after(after(maximised.showDesktop()).restoreWindow(id("a")));
+
+    expect(windowOf(shown, id("a")).state).toBe("maximised");
+  });
+
+  it("INV-23: repeating it is a no-op", () => {
+    const hidden = after(desktopWith("a").showDesktop());
+
+    const again = unwrap(hidden.showDesktop());
+
+    expect(again.manager).toBe(hidden);
+    expect(again.events).toEqual([]);
+  });
+
+  it("reports one WindowMinimised per window that was visible", () => {
+    const manager = after(desktopWith("a", "b", "c").minimiseWindow(id("b")));
+
+    const { events } = unwrap(manager.showDesktop());
+
+    expect(events.filter((event) => event.type === "WindowMinimised")).toHaveLength(2);
+    expect(events.filter((event) => event.type === "WindowFocused")).toHaveLength(0);
+  });
+});

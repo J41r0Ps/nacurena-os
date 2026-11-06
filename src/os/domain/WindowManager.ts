@@ -125,6 +125,36 @@ export class WindowManager {
     });
   }
 
+  /**
+   * Brings an app forward without adding to it, unlike `openApp`, which gives a multi-instance app
+   * a new window every time. So it can run again and again, which a page reload does.
+   */
+  showApp(app: AppDefinition, generateId: WindowIdGenerator): CommandResult {
+    const own = this.windows.filter((window) => window.appId === app.id);
+    const visible = topmostVisible(own);
+    if (visible !== null) return this.focusWindow(visible.id);
+
+    const minimised = own.reduce<Window | null>(
+      (top, window) => (top === null || window.zOrder > top.zOrder ? window : top),
+      null,
+    );
+    return minimised === null ? this.openApp(app, generateId) : this.restoreWindow(minimised.id);
+  }
+
+  /** Minimises and keeps every window, so nothing is lost and each one can come back as it was. */
+  showDesktop(): CommandResult {
+    const visible = this.windows.filter((window) => window.isVisible);
+    if (visible.length === 0) return this.unchanged();
+
+    const windows = this.windows.map((window) => (window.isVisible ? window.asMinimised() : window));
+    // Back to front, so the window that had focus is reported last, as the one that just left.
+    const events = visible
+      .toSorted((a, b) => a.zOrder - b.zOrder)
+      .map((window): DomainEvent => ({ type: "WindowMinimised", windowId: window.id }));
+
+    return ok({ manager: new WindowManager(this.viewport, windows, null), events });
+  }
+
   focusWindow(id: WindowId): CommandResult {
     const window = this.findWindow(id);
     if (!window.ok) return window;

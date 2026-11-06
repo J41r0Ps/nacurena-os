@@ -1,6 +1,11 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { appIds } from "@/apps/registry";
+import { englishStrings } from "@/i18n/testStrings";
+import type { AppId } from "@/os/domain";
 import { Desktop } from "./Desktop";
+
+const renderDesktop = () => render(<Desktop locale="en" strings={englishStrings()} />);
 
 const icon = (name: string): HTMLElement => {
   const element = document.querySelector<HTMLElement>(`[data-app-icon="${name}"]`);
@@ -23,6 +28,7 @@ const measureWorkArea = (width: number, height: number): void => {
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.history.replaceState(null, "", "/");
 });
 
 afterEach(() => {
@@ -31,7 +37,7 @@ afterEach(() => {
 
 describe("window chrome", () => {
   it("names the window after its app, without making it modal", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     expect(window).toHaveAccessibleName("Documents");
@@ -39,7 +45,7 @@ describe("window chrome", () => {
   });
 
   it("gives every control a real button with a label", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = within(openApp("documents"));
 
     expect(window.getByRole("button", { name: "Minimise Documents" })).toBeInTheDocument();
@@ -48,7 +54,7 @@ describe("window chrome", () => {
   });
 
   it("keeps the controls out of the drag region", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
     const dragRegion = window.querySelector("[data-window-drag-region]");
 
@@ -57,7 +63,7 @@ describe("window chrome", () => {
   });
 
   it("maximises and restores from the same control", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.click(within(window).getByRole("button", { name: "Maximise Documents" }));
@@ -68,7 +74,7 @@ describe("window chrome", () => {
   });
 
   it("maximises on a double-click of the title", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.doubleClick(window.querySelector("[data-window-drag-region]") as Element);
@@ -77,7 +83,7 @@ describe("window chrome", () => {
   });
 
   it("offers no resize handles on a maximised window", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
     expect(window.querySelectorAll("[data-resize-edge]")).toHaveLength(8);
 
@@ -87,7 +93,7 @@ describe("window chrome", () => {
   });
 
   it("closes from the control", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.click(within(window).getByRole("button", { name: "Close Documents" }));
@@ -96,7 +102,7 @@ describe("window chrome", () => {
   });
 
   it("closes with Esc, and leaves no animated copy behind", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -106,7 +112,7 @@ describe("window chrome", () => {
   });
 
   it("minimises to the taskbar and restores from it", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.click(within(window).getByRole("button", { name: "Minimise Documents" }));
@@ -117,7 +123,7 @@ describe("window chrome", () => {
   });
 
   it("marks the focused window, with a different state for the one behind", () => {
-    render(<Desktop />);
+    renderDesktop();
     const first = openApp("documents");
     const second = openApp("projects");
 
@@ -134,7 +140,7 @@ describe("window chrome", () => {
 describe("compact viewport", () => {
   it("hides maximise and the resize handles, and keeps minimise and close", () => {
     measureWorkArea(375, 700);
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
     const controls = within(window);
 
@@ -146,7 +152,7 @@ describe("compact viewport", () => {
 
   it("fills the work area", () => {
     measureWorkArea(375, 700);
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     expect(window).toHaveStyle({ width: "375px", height: "700px" });
@@ -154,7 +160,7 @@ describe("compact viewport", () => {
 
   it("does nothing on a double-click of the title", () => {
     measureWorkArea(375, 700);
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.doubleClick(window.querySelector("[data-window-drag-region]") as Element);
@@ -165,13 +171,13 @@ describe("compact viewport", () => {
 
 describe("desktop", () => {
   it("shows no window in the first render, so it matches the static HTML", () => {
-    render(<Desktop />);
+    renderDesktop();
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("opens one window per click, and ignores the second click of a double-click", () => {
-    render(<Desktop />);
+    renderDesktop();
 
     fireEvent.click(icon("documents"), { detail: 1 });
     fireEvent.click(icon("documents"), { detail: 2 });
@@ -180,7 +186,7 @@ describe("desktop", () => {
   });
 
   it("opens from the keyboard, which reports no click count", () => {
-    render(<Desktop />);
+    renderDesktop();
 
     fireEvent.click(icon("documents"), { detail: 0 });
 
@@ -188,7 +194,7 @@ describe("desktop", () => {
   });
 
   it("opens a second window for a multi-instance app", () => {
-    render(<Desktop />);
+    renderDesktop();
 
     openApp("documents");
     openApp("documents");
@@ -198,7 +204,7 @@ describe("desktop", () => {
   });
 
   it("brings back the one window of a single-instance app", () => {
-    render(<Desktop />);
+    renderDesktop();
 
     openApp("projects");
     openApp("projects");
@@ -207,7 +213,7 @@ describe("desktop", () => {
   });
 
   it("minimises from the taskbar when the window is already focused", () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     fireEvent.click(taskbarGroup().getByRole("button", { name: "Documents" }));
@@ -216,7 +222,7 @@ describe("desktop", () => {
   });
 
   it("focuses a background window from the taskbar instead of minimising it", () => {
-    render(<Desktop />);
+    renderDesktop();
     const first = openApp("documents");
     openApp("projects");
 
@@ -227,7 +233,7 @@ describe("desktop", () => {
   });
 
   it("marks the focused window's taskbar button as pressed", () => {
-    render(<Desktop />);
+    renderDesktop();
     openApp("documents");
     openApp("projects");
 
@@ -238,7 +244,7 @@ describe("desktop", () => {
 
   it("fills in the clock after mount", () => {
     vi.useFakeTimers();
-    render(<Desktop />);
+    renderDesktop();
     act(() => {
       vi.advanceTimersByTime(1000);
     });
@@ -247,25 +253,98 @@ describe("desktop", () => {
     expect(document.querySelector("time")?.textContent).not.toBe("");
   });
 
-  it("has no dead buttons: every button on the desktop belongs to an app", () => {
-    render(<Desktop />);
+  it("has no dead buttons: on an empty desktop the only button is Start", () => {
+    renderDesktop();
 
-    const buttons = screen.getAllByRole("button");
+    expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Start" })]);
+  });
 
-    expect(buttons).toEqual([icon("projects"), icon("documents")]);
+  it("makes every icon a real link to its app's URL", () => {
+    renderDesktop();
+
+    expect(icon("projects")).toHaveAttribute("href", "/en/projects/");
+    expect(icon("documents")).toHaveAttribute("href", "/en/documents/");
+  });
+
+  it("builds the links in the language of the page", () => {
+    render(<Desktop locale="nl" strings={englishStrings()} />);
+
+    expect(icon("projects")).toHaveAttribute("href", "/nl/projects/");
+  });
+
+  it("takes over a plain click, so the page does not load", () => {
+    renderDesktop();
+
+    // `fireEvent` returns false if the handler called preventDefault.
+    const leftToBrowser = fireEvent.click(icon("documents"), { detail: 1 });
+
+    expect(leftToBrowser).toBe(false);
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it.each([
+    ["ctrl", { ctrlKey: true }],
+    ["cmd", { metaKey: true }],
+    ["shift", { shiftKey: true }],
+    ["alt", { altKey: true }],
+    ["middle", { button: 1 }],
+  ])("leaves a %s click to the browser, so a new tab still works", (_name, modifier) => {
+    renderDesktop();
+
+    const leftToBrowser = fireEvent.click(icon("documents"), { detail: 1, ...modifier });
+
+    expect(leftToBrowser).toBe(true);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("does not follow the link on the second click of a double-click", () => {
+    renderDesktop();
+
+    expect(fireEvent.click(icon("documents"), { detail: 2 })).toBe(false);
+  });
+});
+
+describe("a page with an app in its URL", () => {
+  const renderAt = (appId: AppId) =>
+    render(<Desktop locale="en" strings={englishStrings()} initialAppId={appId} />);
+
+  it("shows the window, focused, in the very first render", () => {
+    renderAt(appIds[0]);
+
+    const window = screen.getByRole("dialog", { name: "Projects" });
+    expect(window).toHaveAttribute("data-focused", "true");
+    expect(window).toHaveAttribute("data-static-window");
+  });
+
+  it("does not take DOM focus away from the page", () => {
+    renderAt(appIds[0]);
+
+    expect(screen.getByRole("dialog", { name: "Projects" })).not.toHaveFocus();
+  });
+
+  it("does not offer the window a second time in the taskbar", () => {
+    renderAt(appIds[0]);
+
+    expect(taskbarGroup().getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("links the no-JavaScript Close to the locale root", () => {
+    renderAt(appIds[0]);
+
+    expect(screen.getByRole("link", { name: "Close Projects" })).toHaveAttribute("href", "/en/");
   });
 });
 
 describe("focus", () => {
   it("moves into a window when it opens", async () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
 
     await vi.waitFor(() => expect(window).toHaveFocus());
   });
 
   it("returns to the opener when the last window closes", async () => {
-    render(<Desktop />);
+    renderDesktop();
     const opener = icon("documents");
     opener.focus();
     const window = openApp("documents");
@@ -277,7 +356,7 @@ describe("focus", () => {
   });
 
   it("goes to the window that takes over when another one is left", async () => {
-    render(<Desktop />);
+    renderDesktop();
     const first = openApp("documents");
     const second = openApp("projects");
     await vi.waitFor(() => expect(second).toHaveFocus());
@@ -288,7 +367,7 @@ describe("focus", () => {
   });
 
   it("goes to the taskbar button when the last window is minimised", async () => {
-    render(<Desktop />);
+    renderDesktop();
     const window = openApp("documents");
     await vi.waitFor(() => expect(window).toHaveFocus());
 
@@ -299,7 +378,7 @@ describe("focus", () => {
   });
 
   it("makes a window the focused one when Tab lands inside it", () => {
-    render(<Desktop />);
+    renderDesktop();
     const first = openApp("documents");
     openApp("projects");
 

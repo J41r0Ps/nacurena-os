@@ -334,14 +334,99 @@ Otherwise the domain and the browser would disagree about who receives keyboard 
 loaded by dynamic import, and dependency-cruiser keeps it that way.
 
 **Consequences.**
-- Icons are `<button>`s until Slice 4 creates the app URLs, which is a temporary deviation from
-  DESIGN §4. Without JavaScript they do nothing, so the page keeps the name and contact links as
-  server-rendered HTML on the desktop until the real apps carry that content.
+- The page keeps the name and contact links as server-rendered HTML on the desktop until the real
+  apps carry that content. Icons were `<button>`s until Slice 4 gave them real URLs (ADR-011).
 - `@/` imports need the alias in `vitest.config.mts` as well as `tsconfig.json`.
 - A static `typeof import()` counts as a dependency in dependency-cruiser, so `motion.ts` declares
   its own small interface instead.
 - Keyboard move and resize and the window switcher are not built. Maximise is the only non-drag
   alternative for now (`docs/IDEAS.md`).
+
+## ADR-011: Shell, locales and app URLs
+
+**Context.** Every app needs a real URL with its window in the static HTML, in three languages, on a
+static host with no server. Printed CVs link to `https://jaironacurena.com`, `/nl/` and `/es/`, so
+those addresses can never break. The window manager already owns the windows, and a URL must not
+become a second owner.
+
+**Decision.**
+
+*The store owns the windows, and the URL reflects them.* Inside the desktop, Next's router never
+navigates. A router navigation would replace the page and the desktop with it, and would fetch data
+the store already has. So URL sync uses the History API, which Next supports and folds into its own
+state. There is no `next/link`, no `createNavigation` and no middleware.
+
+*English at the root, not a redirect.* `/` is a real English page with `lang="en"`. The alternative,
+`/` sending to `/en/`, needs `_redirects` plus a meta-refresh fallback, because a static export cannot
+redirect. Its advantage is a single URL. It was rejected because the address printed on the CV would
+then depend on host configuration that `serve` ignores, so the e2e tests of ADR-005 could not cover it,
+and because it costs a round trip on the most important link. The price of this choice is that `/` and
+`/en/` are duplicates, so `/en/` has a canonical tag pointing to `/`.
+
+*Two root layouts.* `<html lang>` needs the locale and `/` has no `[locale]` param, so `(root)` and
+`[locale]` each have a root layout around a shared `RootDocument`. Moving between two root layouts
+forces a page load, which never matters here because the router does not navigate.
+
+*next-intl runs on the server only.* The server resolves every string while building and passes one
+typed `ShellStrings` object to the client island. `NextIntlClientProvider` was rejected because it
+ships the message runtime for strings that cannot change after the build, since switching language
+is a full page load. A dependency-cruiser rule keeps `next-intl` out of `src/ui`. Measured First Load
+JS on `/`: 185,931 B before this slice and 187,662 B after, in gzip. The +1,731 B is the start menu
+and URL sync, and no client chunk contains next-intl.
+
+*The URL's window is in the store's initial state.* Zustand renders the server and the first client
+pass from `getInitialState()`, so opening the app there gives both the same tree. Its id is fixed,
+because a random id in a render is a hydration mismatch. Hydration then restores the saved layout and
+runs `showApp`, in one `set` with no events, so nothing animates and DOM focus stays put.
+
+*`showApp` and `showDesktop` are domain commands.* `openApp` adds a window to a multi-instance app
+every time, so each reload of `/en/documents/` would add one. Which window a URL means is a rule, so
+it belongs in the domain (INV-22, INV-23).
+
+*History.* DOMAIN.md has the table: one entry per deliberate open, and every other change replaces.
+
+*The start menu is a WAI-ARIA menu button, with links as menu items.* A start menu is an application
+menu, so arrow keys and Esc back to the button are what a screen reader should announce. A disclosure
+would use Tab instead of arrows, and a modal dialog would trap focus, which the desktop avoids.
+
+*Esc opt-out is in the registry.* `closesOnEscape` is a UI policy, so it is not in `AppDefinition`.
+
+*404s.* `global-not-found.tsx` gives `out/404.html`, which is the only way to have one 404 with two
+root layouts. Cloudflare Pages serves the nearest `404.html`, so `[locale]/404` builds a page per
+language, and `scripts/localize-404.mjs` moves it to `<locale>/404.html`, a name `trailingSlash`
+cannot produce.
+
+**Consequences.**
+- `global-not-found` is experimental, behind `experimental.globalNotFound`. Next is pinned exactly, so
+  it cannot change without a deliberate update. If it goes away, next-intl documents a pass-through
+  root layout with `not-found.tsx`.
+- Without a top-level `404.html`, Pages acts as a single-page app and answers every unknown path with
+  `/` and a 200. The `postbuild` script fails the build if the file is missing.
+- `serve` knows only the root 404, so e2e plays the host with `page.route`. The real nearest-404 lookup
+  can only be checked on Cloudflare, once per deployment of this behaviour.
+- Next patches `history` in an effect that runs after our layout effect. So the one write during
+  hydration passes `history.state` on by hand: losing Next's `__NA` marker would turn the next Back
+  press into a full reload. A test holds this.
+- **"No flash" has one limit.** A first visit never moves: same element, same bounds, on any screen of
+  at least 848 × 496. A returning visitor whose saved window sits elsewhere sees the static position
+  until hydration, and other saved windows appear at that moment, because static HTML cannot read
+  `localStorage`. The only fix is a render-blocking script, which costs every visitor a request,
+  duplicates the parsing of untrusted storage and complicates the CSP of Slice 13.
+- Between 768 and 848 px wide, the static window shifts left on hydration, because INV-21 moves it
+  fully on screen and the build cannot know the width. Below 768 px, CSS fits it before JavaScript.
+- After a close, one Back press can land on the same Address and appear to do nothing. That is the
+  price of never reviving a closed app.
+- `noscript:` is `@media (scripting: none)`, which browsers from before 2023 ignore. There, a visitor
+  without JavaScript sees controls that do nothing, and the page is still readable.
+- On a phone without JavaScript, the full-size window covers the name and links. They are still in the
+  HTML. Slice 12 owns that layout.
+- The registry holds data only, because Phosphor's `csr` icons call `createContext`, which does not exist
+  in a Server Component. Icons are in `src/ui/desktop/appIcons.ts`, and a dependency-cruiser rule holds
+  the split.
+- BRIEF §7 says to make the logo fills `currentColor`. Taken literally that erases the small inner J,
+  which sits on top of the block, so the J is a cut-out instead. The logo file is `public/brand/jn-logo.svg`.
+- Later client apps that need formatted messages can revisit the server-only rule, and should measure
+  the cost when they do.
 
 ## Asset and dependency licence audit
 
@@ -383,6 +468,7 @@ Versions are the ones installed from `package-lock.json`.
 | `react` | 19.3.1 | MIT |
 | `react-dom` | 19.3.1 | MIT |
 | `zustand` | 5.0.16 | MIT |
+| `next-intl` | 4.14.9 | MIT. Runs at build time only: no client chunk contains it (ADR-011) |
 | `@phosphor-icons/react` | 2.1.10 | MIT |
 | `gsap` | 3.15.0 | GSAP Standard License (free, not open source). 3.15.1 was two days old at install, so it was held back |
 
@@ -396,6 +482,7 @@ Versions are the ones installed from `package-lock.json`.
 | `@testing-library/dom` | 10.4.2 | MIT |
 | `@testing-library/jest-dom` | 7.0.1 | MIT |
 | `@testing-library/react` | 16.3.3 | MIT |
+| `@testing-library/user-event` | 14.6.8 | MIT |
 | `@types/node` | 24.19.2 | MIT |
 | `@types/react` | 19.3.0 | MIT |
 | `@types/react-dom` | 19.3.0 | MIT |
@@ -416,7 +503,11 @@ Versions are the ones installed from `package-lock.json`.
 540 packages were installed on Windows and checked from `package-lock.json`. Almost all are MIT,
 Apache-2.0, ISC or BSD. Other platforms install their own native binaries, which were not checked
 individually. `dependency-cruiser` and `fast-check` added 26 of these in Slice 2 (24 MIT, 2 ISC),
-none with an install script. These need a note:
+none with an install script. `next-intl` added 29 in Slice 4, checked in a sandbox first: all MIT,
+Apache-2.0 or BSD-3-Clause, and `@swc/core` platform binaries are `Apache-2.0 AND MIT`. Two of them
+have install scripts, `@swc/core` and `@parcel/watcher`. npm reports both as not covered by
+`allowScripts`, and the build does not need either: they serve next-intl's optional message extractor.
+These need a note:
 
 | Package | Licence | Why it is acceptable |
 |---|---|---|

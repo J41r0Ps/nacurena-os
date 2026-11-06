@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "homeTitle": "Jairo Nacurena",
+    "homeDescription": "El portafolio de Jairo Nacurena: NacurenaOS, un sistema operativo de escritorio que funciona en el navegador, donde los proyectos, la historia, el CV y el contacto son aplicaciones.",
+    "appTitle": "{app} · Jairo Nacurena"
+  },
+  "apps": {
+    "projects": {
+      "title": "Proyectos",
+      "body": "Proyectos todavía no está construido.",
+      "description": "Proyectos de Jairo Nacurena, estudiante de Informática Aplicada, en NacurenaOS."
+    },
+    "documents": {
+      "title": "Documentos",
+      "body": "Documentos todavía no está construido.",
+      "description": "Casos de estudio y el CV de Jairo Nacurena, en NacurenaOS."
+    }
+  },
+  "desktop": {
+    "appsLabel": "Aplicaciones",
+    "contactLabel": "Contacto",
+    "email": "Correo"
+  },
+  "taskbar": {
+    "openApps": "Aplicaciones abiertas",
+    "minimised": "{app}, minimizado"
+  },
+  "startMenu": {
+    "label": "Inicio"
+  },
+  "window": {
+    "minimise": "Minimizar {app}",
+    "maximise": "Maximizar {app}",
+    "restore": "Restaurar {app}",
+    "close": "Cerrar {app}"
+  },
+  "notFound": {
+    "windowTitle": "No encontrada",
+    "title": "Esta página no existe",
+    "body": "Puede que la dirección tenga un error o que la página se haya movido.",
+    "pageTitle": "Página no encontrada · Jairo Nacurena",
+    "desktop": "Ir al escritorio",
+    "linksLabel": "Aplicaciones"
+  }
+}

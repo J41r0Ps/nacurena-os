@@ -1,7 +1,10 @@
-import { apps } from "@/apps/registry";
-import { createWindowId, type DomainEvent, type WindowId } from "@/os/domain";
+import { appById, appIds, apps } from "@/apps/registry";
+import { createWindowId, type AppId, type DomainEvent, type WindowId } from "@/os/domain";
+import type { Locale } from "@/os/routing/desktopAddress";
 import { createDesktopStore, type DesktopStore } from "@/os/store/desktopStore";
 import { playClose } from "@/ui/motion/motion";
+import type { ShellStrings } from "./shellStrings";
+import { createUrlSync } from "./urlSync";
 
 const generateWindowId = (): WindowId => {
   const id = createWindowId(crypto.randomUUID());
@@ -19,11 +22,13 @@ export const SURFACE_ATTRIBUTE = "data-window-surface";
  */
 export interface DesktopShell {
   readonly store: DesktopStore;
+  readonly locale: Locale;
+  readonly strings: ShellStrings;
+  /** Keeps the URL and the desktop in step until the returned function is called. */
+  startUrlSync(): () => void;
+  /** A deliberate open from an icon or the start menu: the one kind of change that adds history. */
+  openFrom(appId: AppId, opener: HTMLElement): void;
   registerWindow(id: WindowId, element: HTMLElement | null): void;
-  /** Remembers which control opened a window, so closing it can return focus there. */
-  rememberOpener(id: WindowId, opener: HTMLElement): void;
-  /** Moves DOM focus into a window that is already on the page. */
-  focusWindowElement(id: WindowId): void;
   /** Closes without the exit animation. DESIGN §6: Esc never animates. */
   closeWithoutMotion(id: WindowId): void;
   /** True once, for a window opened by a command and not restored by a reload. */
@@ -34,7 +39,17 @@ export interface DesktopShell {
   setRoot(element: HTMLElement | null): void;
 }
 
-export const createDesktopShell = (): DesktopShell => {
+export interface DesktopShellOptions {
+  readonly locale: Locale;
+  readonly strings: ShellStrings;
+  readonly initialAppId?: AppId;
+}
+
+export const createDesktopShell = ({
+  locale,
+  strings,
+  initialAppId,
+}: DesktopShellOptions): DesktopShell => {
   const windowElements = new Map<WindowId, HTMLElement>();
   const openers = new Map<WindowId, HTMLElement>();
   const openingWindows = new Set<WindowId>();
@@ -97,23 +112,37 @@ export const createDesktopShell = (): DesktopShell => {
 
   const store = createDesktopStore({
     apps,
+    initialApp: initialAppId === undefined ? undefined : appById(initialAppId),
     generateId: generateWindowId,
     getStorage: () => window.localStorage,
     onEvents: (events) => events.forEach(handleEvent),
   });
 
+  const urlSync = createUrlSync({
+    store,
+    locale,
+    appIds,
+    titleOf: (appId) => (appId === null ? strings.homeTitle : strings.apps[appId].pageTitle),
+  });
+
   return {
     store,
+    locale,
+    strings,
+    startUrlSync: urlSync.start,
+
+    openFrom(appId, opener) {
+      const id = urlSync.opening(() => store.getState().openApp(appId));
+      if (id === null) return;
+      // Remembered so that closing the window can return focus there.
+      openers.set(id, opener);
+      // A new window is not on the page yet: `syncFocus` handles that one after React commits.
+      windowElements.get(id)?.focus({ preventScroll: true });
+    },
 
     registerWindow(id, element) {
       if (element === null) windowElements.delete(id);
       else windowElements.set(id, element);
-    },
-
-    rememberOpener: (id, opener) => void openers.set(id, opener),
-
-    focusWindowElement(id) {
-      windowElements.get(id)?.focus({ preventScroll: true });
     },
 
     closeWithoutMotion(id) {

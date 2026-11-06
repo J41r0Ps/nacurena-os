@@ -57,15 +57,21 @@ Slice 3 resolved this; ADR-010 records it.
   and CV come first. Positions are fixed in v1. New windows open right of the first column
   (`CASCADE_ORIGIN_X`), so a window never hides the icons when it opens.
 - **Behaviour:** an icon is a real link to the app's URL. One click or Enter opens it, because
-  recruiters on a website expect a click, and a link keeps working without JavaScript. Until the
-  app URLs exist (Slice 4), icons are `<button>`s, because a link with no real target misleads
-  crawlers and screen readers (ADR-010). The second click of a double-click is ignored.
+  recruiters on a website expect a click, and a link keeps working without JavaScript. A modified
+  click stays with the browser, so "open in new tab" works. The second click of a double-click is
+  ignored.
+- **Without JavaScript:** nothing is shown that could not work. Window controls, the start button and
+  the open-apps buttons are hidden with `noscript:`, and Close becomes a link to the locale root.
 - **Taskbar:** 48 px, full width, solid `--surface-sunken`, 1 px `--border` on top. Not part of the viewport.
   - Left: start button ("Jn" logo), pinned Projects, then open apps, left-aligned.
   - Right: **Download CV** with a text label, language, theme, clock (Geist Mono, tabular figures).
     The clock renders after mount, because a static export cannot know the visitor's time.
   - App button: 44 to 160 px wide, glyph plus truncated title. Focused: `--surface-overlay` fill and a
     16 px `--accent` bar. Open or minimised: no fill, 6 px `--text-muted` bar. Not colour alone.
+- **Start menu:** bottom-left, above the taskbar, solid `--surface-overlay`, with the window's border
+  and shadow. An app list with 20 px duotone glyphs and 40 px rows. The start button shows the Jn mark
+  through a CSS mask, so it takes the text colour and its paths stay out of the JavaScript. The mark's
+  small inner J is a cut-out, because one colour would otherwise paint it over.
 - **Phone mode (Slice 12):** none of this chrome. Home screen and full-screen apps, same tokens.
 
 ## 5. Tokens
@@ -139,8 +145,9 @@ Esc and the window switcher · a window opened from a URL (it is already in the 
 a window · `box-shadow`, `width`, `height`, `top`, `left` · stagger or scroll reveals. The wallpaper
 is the only loop, and under reduced motion it is one still frame.
 
-- CSS transitions for hover and press. GSAP for windows and boot, because targets are measured at
-  runtime and tweens must retarget. `CustomEase` carries the same curves; `gsap.matchMedia()` holds
+- CSS transitions for hover, press and the start menu. The menu must not wait for a lazily loaded
+  GSAP, and nothing in it is measured at runtime. GSAP for windows and boot, because targets are
+  measured at runtime and tweens must retarget. `CustomEase` carries the same curves; `gsap.matchMedia()` holds
   the reduced-motion branch. Drag and resize use plain pointer events, not Draggable (ADR-010).
 - GSAP loads by dynamic import after mount, so it stays out of First Load JS. If it is late, a
   window simply appears, which motion rules allow because an animation never gates state.

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { loadMotion } from "@/ui/motion/motion";
 import { WindowFrame } from "@/ui/window/WindowFrame";
 import { DesktopShellContext, useDesktopShell, useDesktopStore, useWindowIds } from "./desktopContext";
-import { createDesktopShell } from "./desktopShell";
+import { createDesktopShell, type DesktopShellOptions } from "./desktopShell";
 import { DesktopIcons } from "./DesktopIcons";
 import { Taskbar } from "./Taskbar";
 
@@ -35,13 +35,14 @@ const DesktopSurface = ({ children }: { readonly children: ReactNode }) => {
   const workAreaRef = useRef<HTMLDivElement>(null);
 
   // A layout effect runs after hydration but before paint. The static HTML and the first client
-  // render therefore match (zero windows), and the saved windows are there on the first frame.
+  // render therefore match (only the URL's window), and saved windows join before the next frame.
   useLayoutEffect(() => {
     const workArea = workAreaRef.current;
     if (workArea === null) return;
 
     const { hydrate, resizeViewport } = shell.store.getState();
     const stopSaving = hydrate(workArea.clientWidth, workArea.clientHeight);
+    const stopUrlSync = shell.startUrlSync();
     loadMotion();
 
     const observer = new ResizeObserver(() =>
@@ -51,6 +52,7 @@ const DesktopSurface = ({ children }: { readonly children: ReactNode }) => {
 
     return () => {
       observer.disconnect();
+      stopUrlSync();
       stopSaving();
     };
   }, [shell]);
@@ -72,9 +74,12 @@ const DesktopSurface = ({ children }: { readonly children: ReactNode }) => {
  * The client island: the one file that says "use client". Everything it imports joins the client
  * bundle by itself, and `children` stays server-rendered HTML that this island merely places.
  */
-export const Desktop = ({ children }: { readonly children?: ReactNode }) => {
+export const Desktop = ({
+  children,
+  ...options
+}: DesktopShellOptions & { readonly children?: ReactNode }) => {
   // Created once per mounted desktop, and never shared between renders on the server.
-  const [shell] = useState(createDesktopShell);
+  const [shell] = useState(() => createDesktopShell(options));
 
   return (
     <DesktopShellContext value={shell}>

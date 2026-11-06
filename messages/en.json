@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "homeTitle": "Jairo Nacurena",
+    "homeDescription": "The portfolio of Jairo Nacurena: NacurenaOS, a desktop operating system that runs in the browser, where projects, story, CV and contact are apps.",
+    "appTitle": "{app} · Jairo Nacurena"
+  },
+  "apps": {
+    "projects": {
+      "title": "Projects",
+      "body": "Projects is not built yet.",
+      "description": "Projects by Jairo Nacurena, an Applied Computer Science student, in NacurenaOS."
+    },
+    "documents": {
+      "title": "Documents",
+      "body": "Documents is not built yet.",
+      "description": "Case studies and the CV of Jairo Nacurena, in NacurenaOS."
+    }
+  },
+  "desktop": {
+    "appsLabel": "Apps",
+    "contactLabel": "Contact",
+    "email": "Email"
+  },
+  "taskbar": {
+    "openApps": "Open apps",
+    "minimised": "{app}, minimised"
+  },
+  "startMenu": {
+    "label": "Start"
+  },
+  "window": {
+    "minimise": "Minimise {app}",
+    "maximise": "Maximise {app}",
+    "restore": "Restore {app}",
+    "close": "Close {app}"
+  },
+  "notFound": {
+    "windowTitle": "Not found",
+    "title": "This page does not exist",
+    "body": "The address may be mistyped, or the page may have moved.",
+    "pageTitle": "Page not found · Jairo Nacurena",
+    "desktop": "Go to the desktop",
+    "linksLabel": "Apps"
+  }
+}

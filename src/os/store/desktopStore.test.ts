@@ -13,7 +13,12 @@ import {
   type WindowId,
 } from "@/os/domain";
 import { DESKTOP_STORAGE_KEY, type DesktopStorage } from "./desktopPersistence";
-import { SAVE_DELAY_MS, createDesktopStore, type DesktopStore } from "./desktopStore";
+import {
+  SAVE_DELAY_MS,
+  URL_WINDOW_ID,
+  createDesktopStore,
+  type DesktopStore,
+} from "./desktopStore";
 
 const unwrap = <T, E>(result: Result<T, E>): T => {
   if (!result.ok) throw new Error(JSON.stringify(result.error));
@@ -341,6 +346,172 @@ describe("the store never bypasses the domain", () => {
     expect(actions.openApp(appId("removed"))).toBeNull();
     expect(store.getState().manager).toBe(before);
     expect(error).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a desktop with an app in its URL", () => {
+  const setupAt = (initialApp: AppDefinition, storage = memoryStorage()) => {
+    const onEvents = vi.fn();
+    let next = 1;
+    const store = createDesktopStore({
+      apps,
+      initialApp,
+      generateId: () => windowId(`window-${next++}`),
+      getStorage: () => storage,
+      onEvents,
+    });
+    return { store, storage, onEvents };
+  };
+
+  /** What a visitor left behind, as it would sit in storage. */
+  const savedWith = (...appsToOpen: AppDefinition[]): string => {
+    const { store } = setup();
+    store.getState().hydrate(1280, 672);
+    appsToOpen.forEach((app) => open(store, app));
+    return JSON.stringify(store.getState().manager.toSnapshot());
+  };
+
+  const appOfFocused = (store: DesktopStore) => {
+    const { manager } = store.getState();
+    return manager.windows.find((window) => window.id === manager.focusedWindowId)?.appId;
+  };
+
+  it("has the window in the initial state, which is what the static HTML renders", () => {
+    const { store } = setupAt(projects);
+
+    const initial = store.getInitialState().manager;
+
+    expect(initial.windows.map((window) => window.id)).toEqual([URL_WINDOW_ID]);
+    expect(initial.focusedWindowId).toBe(URL_WINDOW_ID);
+  });
+
+  it("never calls the random generator for the first render", () => {
+    const generateId = vi.fn(() => windowId("random"));
+
+    createDesktopStore({
+      apps,
+      initialApp: projects,
+      generateId,
+      getStorage: () => memoryStorage(),
+    });
+
+    expect(generateId).not.toHaveBeenCalled();
+  });
+
+  it("keeps the same window on a first visit, so React keeps the same element", () => {
+    const { store } = setupAt(projects);
+    const before = boundsOf(store, URL_WINDOW_ID);
+
+    store.getState().hydrate(1280, 672);
+
+    expect(store.getState().manager.windows.map((window) => window.id)).toEqual([URL_WINDOW_ID]);
+    expect(boundsOf(store, URL_WINDOW_ID)).toEqual(before);
+  });
+
+  it("keeps the saved windows and puts the URL's app in front", () => {
+    const { store } = setupAt(projects, memoryStorage(savedWith(documents)));
+
+    store.getState().hydrate(1280, 672);
+
+    expect(store.getState().manager.windows).toHaveLength(2);
+    expect(appOfFocused(store)).toBe(projects.id);
+  });
+
+  it("uses the saved window of the URL's app instead of opening another", () => {
+    const { store } = setupAt(projects, memoryStorage(savedWith(projects, documents)));
+
+    store.getState().hydrate(1280, 672);
+
+    expect(store.getState().manager.windows).toHaveLength(2);
+    expect(appOfFocused(store)).toBe(projects.id);
+  });
+
+  it("does not add a window on each reload of a multi-instance app", () => {
+    const storage = memoryStorage();
+    const first = setupAt(documents, storage);
+    first.store.getState().hydrate(1280, 672)();
+    storage.setItem(DESKTOP_STORAGE_KEY, JSON.stringify(first.store.getState().manager.toSnapshot()));
+
+    const second = setupAt(documents, storage);
+    second.store.getState().hydrate(1280, 672);
+
+    expect(second.store.getState().manager.windows).toHaveLength(1);
+  });
+
+  it("restores the URL's app when it was saved minimised", () => {
+    const { store: source } = setup();
+    source.getState().hydrate(1280, 672);
+    source.getState().minimiseWindow(open(source, projects));
+    const saved = JSON.stringify(source.getState().manager.toSnapshot());
+    const { store } = setupAt(projects, memoryStorage(saved));
+
+    store.getState().hydrate(1280, 672);
+
+    expect(appOfFocused(store)).toBe(projects.id);
+    expect(store.getState().manager.windows[0].state).toBe("normal");
+  });
+
+  it("uses a new id if a saved window already holds the fixed one", () => {
+    const first = setupAt(projects);
+    first.store.getState().hydrate(1280, 672);
+    const saved = JSON.stringify(first.store.getState().manager.toSnapshot());
+    const { store } = setupAt(documents, memoryStorage(saved));
+
+    store.getState().hydrate(1280, 672);
+
+    const { manager } = store.getState();
+    expect(manager.windows).toHaveLength(2);
+    expect(appOfFocused(store)).toBe(documents.id);
+    expect(checkInvariants(manager.toSnapshot())).toEqual([]);
+  });
+
+  it("emits no events, so nothing animates and DOM focus stays where it is", () => {
+    const { store, onEvents } = setupAt(projects, memoryStorage(savedWith(documents)));
+
+    store.getState().hydrate(1280, 672);
+
+    expect(onEvents).not.toHaveBeenCalled();
+  });
+
+  it("can hydrate twice with the same result, which React's strict mode does", () => {
+    const { store } = setupAt(documents);
+
+    store.getState().hydrate(1280, 672)();
+    store.getState().hydrate(1280, 672);
+
+    expect(store.getState().manager.windows).toHaveLength(1);
+  });
+});
+
+describe("going to an address", () => {
+  it("forwards showApp to the domain, with events, because this one is visible", () => {
+    const { store, onEvents } = setup();
+    store.getState().hydrate(1280, 672);
+
+    store.getState().showApp(documents.id);
+
+    expect(store.getState().manager.windows).toHaveLength(1);
+    expect(onEvents).toHaveBeenCalledOnce();
+  });
+
+  it("refuses an unknown app without changing the state", () => {
+    const { store } = setup();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const before = store.getState().manager;
+
+    store.getState().showApp(appId("removed"));
+
+    expect(store.getState().manager).toBe(before);
+    expect(errors).toHaveBeenCalledOnce();
+  });
+
+  it("forwards showDesktop to the domain", () => {
+    const { store } = setup();
+    open(store);
+
+    store.getState().showDesktop();
+
+    expect(store.getState().manager.focusedWindowId).toBeNull();
   });
 });
 

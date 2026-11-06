@@ -405,7 +405,8 @@ test.describe("persistence", () => {
       localStorage.setItem(key, saved.replaceAll("documents", "removed-app"));
     }, STORAGE_KEY);
 
-    await page.reload();
+    // The root and not a reload: the URL now holds /en/documents/, which would open a window.
+    await gotoDesktop(page);
 
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });

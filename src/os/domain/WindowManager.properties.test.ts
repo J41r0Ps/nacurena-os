@@ -27,6 +27,8 @@ type WindowAction = "focus" | "minimise" | "maximise" | "restore" | "close";
 
 type Command =
   | { readonly kind: "open"; readonly app: number }
+  | { readonly kind: "show"; readonly app: number }
+  | { readonly kind: "showDesktop" }
   | { readonly kind: WindowAction; readonly target: Target }
   | { readonly kind: "move"; readonly target: Target; readonly x: number; readonly y: number }
   | {
@@ -69,6 +71,8 @@ const windowAction = (kind: WindowAction): fc.Arbitrary<Command> =>
 
 const command: fc.Arbitrary<Command> = fc.oneof(
   { weight: 5, arbitrary: fc.nat(apps.length - 1).map((index) => ({ kind: "open" as const, app: index })) },
+  { weight: 3, arbitrary: fc.nat(apps.length - 1).map((index) => ({ kind: "show" as const, app: index })) },
+  { weight: 1, arbitrary: fc.constant({ kind: "showDesktop" as const }) },
   { weight: 3, arbitrary: windowAction("focus") },
   { weight: 2, arbitrary: windowAction("minimise") },
   { weight: 2, arbitrary: windowAction("maximise") },
@@ -123,6 +127,10 @@ const run = (
   switch (step.kind) {
     case "open":
       return manager.openApp(apps[step.app], generateId);
+    case "show":
+      return manager.showApp(apps[step.app], generateId);
+    case "showDesktop":
+      return manager.showDesktop();
     case "focus":
       return manager.focusWindow(resolve(manager, step.target));
     case "minimise":
@@ -171,6 +179,24 @@ const checkTransitionRules = (
 ): void => {
   const target =
     "target" in step ? before.windows.find((w) => w.id === resolve(before, step.target)) : null;
+
+  if (step.kind === "show") {
+    const shown = apps[step.app];
+    const hadWindow = before.windows.some((window) => window.appId === shown.id);
+    expect(afterwards.windows.length).toBe(before.windows.length + (hadWindow ? 0 : 1));
+    const focused = afterwards.windows.find((window) => window.id === afterwards.focusedWindowId);
+    expect(focused?.appId).toBe(shown.id);
+    count(hadWindow ? "INV-22 showed an existing window" : "INV-22 opened a window");
+  }
+
+  if (step.kind === "showDesktop") {
+    expect(afterwards.windows.map((window) => window.id)).toEqual(
+      before.windows.map((window) => window.id),
+    );
+    expect(afterwards.windows.some((window) => window.isVisible)).toBe(false);
+    expect(afterwards.focusedWindowId).toBeNull();
+    count("INV-23 showed the desktop");
+  }
 
   if (step.kind === "open") {
     const opened = afterwards.windows.length > before.windows.length;
@@ -294,6 +320,9 @@ describe("WindowManager under random command sequences", () => {
     expect([...reached.keys()]).toEqual(
       expect.arrayContaining([
         "changed: open",
+        "INV-22 showed an existing window",
+        "INV-22 opened a window",
+        "INV-23 showed the desktop",
         "changed: focus",
         "changed: minimise",
         "changed: maximise",

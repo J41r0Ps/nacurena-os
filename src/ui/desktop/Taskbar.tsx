@@ -1,11 +1,13 @@
 import { memo } from "react";
 import { appById } from "@/apps/registry";
 import type { WindowId } from "@/os/domain";
+import { appIcons } from "./appIcons";
 import { Clock } from "./Clock";
 import { useDesktopShell, useDesktopStore, useWindowIds } from "./desktopContext";
+import { StartMenu } from "./StartMenu";
 
 const TaskbarButton = memo(function TaskbarButton({ id }: { readonly id: WindowId }) {
-  const { store } = useDesktopShell();
+  const { store, strings } = useDesktopShell();
   const appId = useDesktopStore(
     (state) => state.manager.windows.find((window) => window.id === id)?.appId,
   );
@@ -16,7 +18,8 @@ const TaskbarButton = memo(function TaskbarButton({ id }: { readonly id: WindowI
 
   const app = appId === undefined ? undefined : appById(appId);
   if (app === undefined) return null;
-  const AppIcon = app.icon;
+  const AppIcon = appIcons[app.messageKey];
+  const { title, minimised } = strings.apps[app.id];
 
   const activate = (): void => {
     const { focusWindow, minimiseWindow, restoreWindow } = store.getState();
@@ -30,14 +33,14 @@ const TaskbarButton = memo(function TaskbarButton({ id }: { readonly id: WindowI
       type="button"
       data-taskbar-window={id}
       aria-pressed={isFocused}
-      aria-label={isMinimised ? `${app.title}, minimised` : app.title}
+      aria-label={isMinimised ? minimised : title}
       onClick={activate}
       className={`control-feedback focus-ring relative flex h-10 max-w-40 min-w-11 flex-1 items-center gap-2 rounded-control px-3 text-ui hover:bg-surface-overlay ${
         isFocused ? "bg-surface-overlay text-text" : "text-muted"
       }`}
     >
       <AppIcon size={16} aria-hidden="true" className="shrink-0" />
-      <span className="truncate">{app.title}</span>
+      <span className="truncate">{title}</span>
       {/* The bar's length repeats the state, so focus does not rely on colour alone. */}
       <span
         aria-hidden="true"
@@ -50,14 +53,17 @@ const TaskbarButton = memo(function TaskbarButton({ id }: { readonly id: WindowI
 });
 
 export const Taskbar = () => {
+  const { strings } = useDesktopShell();
   const ids = useWindowIds();
 
   return (
     <div className="flex h-(--taskbar-h) shrink-0 items-center gap-1 border-t border-border bg-surface-sunken px-1">
+      <StartMenu />
+      {/* Without JavaScript these buttons could do nothing, so they do not appear. */}
       <div
         role="group"
-        aria-label="Open apps"
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5"
+        aria-label={strings.openApps}
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto p-0.5 noscript:invisible"
       >
         {ids.map((id) => (
           <TaskbarButton key={id} id={id} />

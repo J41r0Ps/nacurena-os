@@ -40,7 +40,7 @@ const ResizeHandle = ({ id, edge, className }: ResizeHandleProps) => {
 
 /** Pointer only, so hidden from assistive technology. Maximise is the alternative to resizing. */
 export const ResizeHandles = ({ id }: { readonly id: WindowId }) => (
-  <div aria-hidden="true">
+  <div aria-hidden="true" className="noscript:hidden">
     {HANDLES.map(({ edge, className }) => (
       <ResizeHandle key={edge} id={id} edge={edge} className={className} />
     ))}
