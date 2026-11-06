@@ -1,6 +1,7 @@
 # NacurenaOS — rules for Claude Code
 Full brief: docs/BRIEF.md (read the relevant section when a task needs it).
 Domain language: docs/DOMAIN.md. Design skills: docs/BRIEF.md §10b.
+UI work: follow docs/DESIGN.md.
 
 ## Commands
 - dev: npm run dev · build: npm run build · test: npm test · e2e: npm run test:e2e

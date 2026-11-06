@@ -241,6 +241,45 @@ therefore a low practical risk, but a noisy audit hides the next finding that ma
 - Remove the `compression` override when `serve` depends on 1.8.2 or later. Remove the `minimatch`
   override when `typescript-estree` accepts a fixed version.
 
+## ADR-009: Design direction
+
+**Context.** Slice 3 builds the first real UI, and each later slice adds more. Without one written
+direction, every slice would make its own visual decisions, and AI-assisted UI drifts towards the
+same generic patterns. The concept, palette, fonts, dark default and the accessibility and performance
+rules were fixed inputs, not up for change. This ADR was planned as ADR-008, but that number was
+already taken.
+
+**Decision.**
+- `docs/DESIGN.md` is the single source for UI decisions, and `CLAUDE.md` points UI work to it.
+  `docs/PRODUCT.md` holds product context, recruiter first and engineer second.
+- The direction is matte and calm: solid surfaces, no blur, and quiet chrome. Dials are layout
+  variance 4, motion 4 and density 5, because the working window manager is the proof.
+- Motion is functional. Focus, drag, resize and keyboard shortcuts never animate, and the domain
+  commits before any animation runs.
+- Icons are Phosphor. Its weights give chrome and app icons one family, and it has an entry for
+  Server Components. Lucide was rejected because it has a single weight.
+- `design-taste-frontend` was used once, for the read and dials. `emil-design-eng` shaped the motion
+  rules. `/impeccable init` wrote `PRODUCT.md`.
+
+Where those skills disagree with the brief, the brief applies (§10b): GSAP instead of Motion, no
+Picsum or generated images, and dark by default instead of following the system preference.
+
+**Consequences.**
+- `docs/DESIGN.md` is written by hand to this project's structure, not Impeccable's frontmatter format.
+- `PRODUCT.md` lives in `docs/` on purpose: Impeccable 4.8.0 resolves `docs/DESIGN.md` only when
+  `PRODUCT.md` is beside it. Moving one means moving both.
+- The title bar stays 32 px because the domain fixes it. Changing `TITLE_BAR_HEIGHT` also means
+  changing `--titlebar-h`.
+- With controls on the right, `Viewport.fit` can leave only control cells on screen, which breaks
+  dragging a window back. Slice 3 has to widen the left clamp, which changes a domain rule and its tests.
+- The palette has no red, so Close hover inverts and errors rely on an icon and text. Adding a hue
+  needs a new ADR.
+- Wallpaper brightness is capped so labels pass AA without a text shadow. Slice 11 has to enforce
+  this in the shader.
+- Impeccable hooks are off through `.impeccable/config.json`, so `impeccable detect` is run by hand.
+  Telemetry is off in `~/.impeccable/config.json`, which is per machine and not in this repository,
+  so it has to be repeated on a new machine.
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
@@ -346,5 +385,5 @@ all are MIT, Apache-2.0, ISC, 0BSD or CC0-1.0. These need a note:
 | Item | Licence | Status |
 |---|---|---|
 | GSAP | GSAP Standard License (free, not open source) | Planned, verify at install |
-| Phosphor or Lucide icons | Open licence | Planned, verify at install |
+| Phosphor icons (`@phosphor-icons/react`) | MIT | Chosen in ADR-009, verify at install |
 | Simple Icons | Open licence; logos are trademarks used only to name the technology | Planned, verify at install |
