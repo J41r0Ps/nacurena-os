@@ -1,0 +1,18 @@
+{
+  // Standalone on purpose: it must not inherit the root "dom" lib, and the CI arch job
+  // must work without the files that `next typegen` generates.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    // Without this, @types/node would still bring in process, console, crypto and fetch.
+    "types": [],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["./**/*.ts"],
+  // Tests import Vitest, which pulls @types/node back in. The root tsconfig checks them.
+  "exclude": ["./**/*.test.ts"]
+}

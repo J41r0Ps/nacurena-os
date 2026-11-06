@@ -4,7 +4,7 @@ Domain language: docs/DOMAIN.md. Design skills: docs/BRIEF.md §10b.
 
 ## Commands
 - dev: npm run dev · build: npm run build · test: npm test · e2e: npm run test:e2e
-- before every commit: npm run lint && npm run typecheck && npm test && npm run build
+- before every commit: npm run lint && npm run typecheck && npm test && npm run arch && npm run build
 
 ## Rules
 - Work in one slice at a time. Plan first, wait for approval, then implement.

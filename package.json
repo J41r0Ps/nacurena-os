@@ -9,6 +9,7 @@
     "pretypecheck": "next typegen",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "arch": "depcruise src --config .dependency-cruiser.cjs && tsc -p src/os/domain/tsconfig.json",
     "test:e2e": "playwright test",
     "preview": "serve out -l 4173 --no-clipboard --no-port-switching"
   },
@@ -28,8 +29,10 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "dependency-cruiser": "^18.7.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.5",
+    "fast-check": "^4.10.2",
     "jsdom": "^29.1.1",
     "serve": "^14.2.6",
     "tailwindcss": "^4.3.4",

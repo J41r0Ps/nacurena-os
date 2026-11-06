@@ -145,6 +145,65 @@ The job has no checkout, so no repository code runs beside the Cloudflare secret
 - Rollback is through the Cloudflare dashboard, or by re-running `deploy` on an older run while its
   artifact still exists (7 days).
 
+## ADR-007: Window manager domain and architecture enforcement
+
+**Context.** The window manager has rules that must hold however the UI behaves, such as "a
+minimised window is never focused" (`docs/DOMAIN.md`). The domain must stay pure TypeScript so it
+can be tested on its own, and that has to be enforced, because a rule nobody checks erodes quietly.
+Slice 3 puts the domain behind a Zustand store with persistence.
+
+**Decision.**
+
+*Style: immutable classes.* `WindowManager` is an aggregate root with a private constructor, and
+every command returns a new instance. The alternative was plain readonly data with pure functions.
+Plain data persists for free, but that advantage is small: localStorage is untrusted input, so
+loading needs a validating step in either style. Zustand's default `persist` merge would otherwise
+put saved data into state and skip every invariant. A class costs one extra `toSnapshot()`, and in
+return the compiler enforces that the aggregate is the only way to change windows. Instances stay
+immutable because Zustand and React detect change by comparing references.
+
+*Errors: a `Result` type for expected failures, exceptions only for bugs.* A `Result` appears in
+the signature, so the compiler forces the caller to handle it, and it cannot crash a React render.
+`DomainError` has codes, not English text, so the UI can translate it. A command that cannot apply
+as asked has three outcomes: a normal gesture is **clamped**, a repeat is a **no-op** that returns
+the same instance, and only what the UI must never send is an **error**.
+
+*IDs: a generator passed to `openApp`.* Aggregates hold state, not services, so the generator is a
+parameter, called only when a window is really created. Tests pass a counter and Slice 3 passes a
+real generator from infrastructure. A duplicate id is an error, which catches a counter that
+restarts after saved windows are restored. `AppId` and `WindowId` are branded strings.
+
+*Modelling.* A maximised window's size is derived from the viewport, not stored, so it cannot go
+stale and restore cannot lose the previous bounds. Z-order is a per-window integer where the next
+value is the highest plus one, so focusing changes one window object and not all of them.
+
+*Enforcement: three layers, because each one misses something the next one catches.*
+- dependency-cruiser checks imports (`npm run arch`). It was chosen over `eslint-plugin-boundaries`
+  because it reads the real resolved import graph, and because an `// eslint-disable` comment cannot
+  switch it off. `tsPreCompilationDeps` is essential: without it, `import type` passes unnoticed.
+- `src/os/domain/tsconfig.json` has no DOM lib and `types: []`, so browser and Node globals fail to
+  compile (also `npm run arch`). `types: []` is the important half, because `@types/node` would
+  otherwise provide `process`, `console`, `crypto` and `fetch`.
+- ESLint bans `Math.random`, `Date.now` and `new Date` in non-test domain files. They are plain
+  ECMAScript, so the tsconfig cannot see them.
+
+**Consequences.**
+- `arch` is a new CI job and is in the `needs` of `ci-ok`, which extends ADR-005.
+- Domain tests may import `vitest` and `fast-check` and nothing else from outside the domain. The
+  domain tsconfig excludes them, because Vitest pulls `@types/node` back in, so the root `tsc`
+  type-checks them instead.
+- Vitest has two projects. Domain tests run in plain Node, so they also prove the domain needs no
+  DOM at runtime.
+- Slice 3 must load saved state through `WindowManager.fromSnapshot`, and call `resizeViewport`
+  afterwards, because the saved viewport may not match the current one.
+- The adapter must round drag values, because `Position` and `Size` accept whole pixels only. This
+  keeps `equals` exact and the clamping free of float drift.
+- INV-04 means there is always a focused window while one is visible. "Click the desktop to
+  unfocus" would need that rule relaxed on purpose.
+- `Window` shares its name with the DOM type, so outer layers may want to import it under an alias.
+- The property test uses a random seed on each run, so a failure can appear on an unrelated push.
+  That is a real bug, and fast-check prints the seed to replay it.
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
@@ -199,8 +258,10 @@ Versions are the ones installed from `package-lock.json`.
 | `@types/react` | 19.3.0 | MIT |
 | `@types/react-dom` | 19.3.0 | MIT |
 | `@vitejs/plugin-react` | 6.2.1 | MIT |
+| `dependency-cruiser` | 18.7.2 | MIT |
 | `eslint` | 9.39.5 | MIT |
 | `eslint-config-next` | 16.4.5 | MIT |
+| `fast-check` | 4.10.2 | MIT |
 | `jsdom` | 29.1.1 | MIT |
 | `serve` | 14.2.6 | MIT |
 | `tailwindcss` | 4.3.4 | MIT |
@@ -210,9 +271,10 @@ Versions are the ones installed from `package-lock.json`.
 
 ### Transitive npm packages
 
-514 packages were installed on Windows and checked from `package-lock.json`. Almost all are MIT,
+540 packages were installed on Windows and checked from `package-lock.json`. Almost all are MIT,
 Apache-2.0, ISC or BSD. Other platforms install their own native binaries, which were not checked
-individually. These need a note:
+individually. `dependency-cruiser` and `fast-check` added 26 of these in Slice 2 (24 MIT, 2 ISC),
+none with an install script. These need a note:
 
 | Package | Licence | Why it is acceptable |
 |---|---|---|
