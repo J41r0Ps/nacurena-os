@@ -204,6 +204,43 @@ value is the highest plus one, so focusing changes one window object and not all
 - The property test uses a random seed on each run, so a failure can appear on an unrelated push.
   That is a real bug, and fast-check prints the seed to replay it.
 
+## ADR-008: npm overrides for audit findings
+
+**Context.** `npm audit` reported 10 findings (8 moderate, 2 high), all in development-only packages
+and none in `out/`. They came from two vulnerable packages; the other eight findings were packages
+that depend on them:
+
+| Package | Advisory | Severity | Why a normal update could not fix it |
+|---|---|---|---|
+| `compression` 1.8.1 | GHSA-vc2v-76pw-4v95, denial of service | High | `serve` 14.2.6 is the latest version and pins exactly 1.8.1 |
+| `minimatch` 10.2.6 | GHSA-g3hv-75wg-m249, denial of service | Moderate | `@typescript-eslint/typescript-estree` 8.72.1 is the latest version and asks for `^10.2.2`. The fix starts at 11.0.1 and has no 10.x backport |
+
+`serve` runs only for `npm run preview` and the e2e tests, on a local port. The findings were
+therefore a low practical risk, but a noisy audit hides the next finding that matters.
+
+**Decision.**
+- `package.json` overrides `compression` to `1.8.2` under `serve`, and `minimatch` to `^11.0.5` under
+  `@typescript-eslint/typescript-estree`.
+- Each override is scoped to its parent. A global `minimatch` override would also move `eslint`,
+  `eslint-plugin-react` and others off 3.1.5, which the advisory does not affect.
+- `npm audit fix --force` was rejected. It would downgrade `serve` to 10.0.2 and
+  `eslint-config-next` to 15.5.29, which no longer matches `next` 16.
+- The ADR-005 caps are unchanged: TypeScript stays on `~6.0.3` and ESLint on 9.
+
+**Consequences.**
+- `minimatch` 11 is outside the range `typescript-estree` declares. That package calls it in one
+  place, for `allowDefaultProject`, which neither `eslint.config.mjs` nor `eslint-config-next`
+  enables. `npm run lint` therefore does not exercise the call, so a future `allowDefaultProject`
+  setting should be tested against this override.
+- `minimatch` 11 needs Node 20 or 22 and later. `.nvmrc` is on 24.
+- Two development-only packages arrive with these versions: `@isaacs/nonrecursive-glob-match`
+  (BlueOak-1.0.0, the same licence as `minimatch`) and `destroy` (MIT).
+- An override silently keeps applying after its reason has gone, and nothing here flags that:
+  Dependabot watches only GitHub Actions and CI does not run `npm audit`. Check these when updating
+  `serve` or `eslint-config-next`.
+- Remove the `compression` override when `serve` depends on 1.8.2 or later. Remove the `minimatch`
+  override when `typescript-estree` accepts a fixed version.
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
