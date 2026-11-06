@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Keeps the SHA pins in the workflows current. Dependabot updates the SHA and the
+  # version comment together. It does not see wranglerVersion in ci.yml (ADR-006).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

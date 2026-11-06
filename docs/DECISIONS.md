@@ -102,6 +102,47 @@ stay reliable as checks are added.
 | `jsdom` | `^29.1.1` | 31.0.0 | jsdom 30 and later need Node `^24.15`; the development machine runs 24.8.0 |
 | `@types/node` | `^24` | 26.x | Matches the Node major in `.nvmrc` |
 
+## ADR-006: Direct upload from CI
+
+**Context.** Cloudflare Pages can deploy in two ways. With Git integration, Cloudflare watches the
+repository, then builds and publishes by itself. With direct upload, something else builds the
+site and sends Cloudflare the finished files. ADR-005 makes `ci-ok` the only check before a
+deployment, and has `e2e` test the exact files that a deployment will publish.
+
+**Decision.** The Pages project `nacurena-os` uses direct upload. A `deploy` job in
+`.github/workflows/ci.yml` runs only on a push to `main` after `ci-ok` succeeds. It downloads the
+`site` artifact and publishes it with Wrangler through `cloudflare/wrangler-action`.
+
+Git integration would break both guarantees. Cloudflare would build at the same time as CI, so a
+failed check could not stop a deployment. It would also publish its own rebuild, not the files
+`e2e` tested.
+
+The job has no checkout, so no repository code runs beside the Cloudflare secrets. It has
+`permissions: {}`, and it is the only job that references those secrets.
+
+**Consequences.**
+- Cloudflare's documentation says a direct upload project cannot switch to Git integration later.
+  Moving would need a new project.
+- Cloudflare does not build, so build variables set in Cloudflare have no effect. This replaces
+  ADR-004 and `docs/BRIEF.md` §8 on that point: `NEXT_PUBLIC_*` values such as the Web3Forms key
+  must be set on the `build` job, or the site ships without them.
+- Branch previews are not automatic. ADR-002 left previews open and the OWASP ZAP scan needs a
+  target, so a later slice still has to define them.
+- A long-lived Cloudflare API token is stored in GitHub. It should only allow editing Cloudflare
+  Pages.
+- Cancelling a workflow run stops all of its jobs, so the workflow-level `cancel-in-progress` is off
+  for `main`. Runs on `main` queue and finish in order, which also stops an older commit from
+  overwriting a newer deployment. A deploy that is waiting can be replaced by a newer one; a running
+  deploy cannot be cancelled by a newer push.
+- `wrangler-action` defaults to the floating range `4`, so `wranglerVersion` is pinned in `ci.yml`.
+  Dependabot does not read that input, so it is updated by hand.
+- `--branch=main` publishes to production only while the project's production branch is `main`.
+  Otherwise Cloudflare creates a preview and the job still passes.
+- `environment.url` is the `pages.dev` address until DNS moves to Cloudflare, because
+  `jaironacurena.com` still serves the old GitHub Pages site.
+- Rollback is through the Cloudflare dashboard, or by re-running `deploy` on an older run while its
+  artifact still exists (7 days).
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
@@ -179,6 +220,25 @@ individually. These need a note:
 | `caniuse-lite` | CC-BY-4.0 | Browser data used at build time; not in `out/` |
 | `@csstools/color-helpers`, `@csstools/css-syntax-patches-for-csstree` | MIT-0 | Development only; permissive |
 | `language-subtag-registry`, `mdn-data` | CC0-1.0 | Development only; public-domain dedication |
+
+### GitHub Actions and CI tools (run in CI, never shipped in `out/`)
+
+| Item | Version | Licence | Notes |
+|---|---|---|---|
+| `actions/checkout` | v7.0.1 | MIT | Pinned to a commit SHA |
+| `actions/setup-node` | v7.1.0 | MIT | Pinned to a commit SHA |
+| `actions/upload-artifact` | v7.0.2 | MIT | Pinned to a commit SHA |
+| `actions/download-artifact` | v8.0.2 | MIT | Pinned to a commit SHA |
+| `cloudflare/wrangler-action` | v4.1.3 | Apache-2.0 | Pinned to `953926a2e2182532811c01a25e53647d93bf07c0` |
+| `wrangler` | 4.158.0 | MIT OR Apache-2.0 | Installed by the action during `deploy`, so it is not in `package-lock.json` |
+
+Wrangler's lockfile lists 91 packages across all platforms, checked from a sandbox install. Almost
+all are MIT, Apache-2.0, ISC, 0BSD or CC0-1.0. These need a note:
+
+| Package | Licence | Why it is acceptable |
+|---|---|---|
+| `@img/sharp-libvips-*` (10 packages) | LGPL-3.0-or-later | Platform binaries pulled in by Wrangler. They run in CI only, are used unmodified and are not in `out/` |
+| `@img/sharp-win32-*`, `@img/sharp-wasm32` | Apache-2.0 AND LGPL-3.0-or-later (`wasm32` also MIT) | Same reason |
 
 ### Planned (not in the repository yet)
 
