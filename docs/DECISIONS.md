@@ -56,11 +56,12 @@ in the audit below before it is used.
 Engineering course uses the same host.
 
 **Decision.** Host on Cloudflare Pages, deployed through GitHub Actions. DNS for
-`jaironacurena.com` moves to Cloudflare in Slice 1.
+`jaironacurena.com` moved to Cloudflare nameservers in Slice 1, and Namecheap stays the registrar.
 
 **Consequences.** Security headers and redirects have to work on a static host. Build variables
 such as the Web3Forms key are set in Cloudflare as well as `.env`, and `NEXT_PUBLIC_*` values
-are public by definition.
+are public by definition (ADR-006 replaces the Cloudflare part). `J41r0Ps.github.io` served the
+domain before the move and is retired.
 
 ## ADR-005: Static export and a single CI gate
 
@@ -129,7 +130,8 @@ The job has no checkout, so no repository code runs beside the Cloudflare secret
 - Branch previews are not automatic. ADR-002 left previews open and the OWASP ZAP scan needs a
   target, so a later slice still has to define them.
 - A long-lived Cloudflare API token is stored in GitHub. It should only allow editing Cloudflare
-  Pages.
+  Pages. It and the account ID are secrets of the `production` environment, not repository secrets,
+  and that environment is restricted to `main`, so a workflow on another branch cannot read them.
 - Cancelling a workflow run stops all of its jobs, so the workflow-level `cancel-in-progress` is off
   for `main`. Runs on `main` queue and finish in order, which also stops an older commit from
   overwriting a newer deployment. A deploy that is waiting can be replaced by a newer one; a running
@@ -138,8 +140,8 @@ The job has no checkout, so no repository code runs beside the Cloudflare secret
   Dependabot does not read that input, so it is updated by hand.
 - `--branch=main` publishes to production only while the project's production branch is `main`.
   Otherwise Cloudflare creates a preview and the job still passes.
-- `environment.url` is the `pages.dev` address until DNS moves to Cloudflare, because
-  `jaironacurena.com` still serves the old GitHub Pages site.
+- `environment.url` is `https://jaironacurena.com`, the custom domain of the Pages project.
+  `nacurena-os.pages.dev` serves the same deployment.
 - Rollback is through the Cloudflare dashboard, or by re-running `deploy` on an older run while its
   artifact still exists (7 days).
 

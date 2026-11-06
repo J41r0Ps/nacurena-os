@@ -3,6 +3,8 @@
 My portfolio: a desktop operating system that runs in the browser, built from scratch.
 My projects, story, skills, CV and contact are apps on the desktop.
 
+**Live:** [jaironacurena.com](https://jaironacurena.com)
+
 **Status:** in development. A placeholder page and CI are in place; the OS itself is not built yet.
 
 ## Planned stack

@@ -136,7 +136,7 @@ jobs:
     permissions: {}
     environment:
       name: production
-      url: https://nacurena-os.pages.dev
+      url: https://jaironacurena.com
     # Queues instead of cancelling, so a half-finished upload is never interrupted.
     concurrency:
       group: deploy-production

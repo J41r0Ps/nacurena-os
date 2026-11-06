@@ -201,14 +201,16 @@ nacurena-os/
 
 ## 8. Infrastructure that already exists
 
-- **Domain** `jaironacurena.com` (Namecheap, auto-renew ON, WHOIS privacy ON). `.me` lapses.
+- **Domain** `jaironacurena.com` (Namecheap stays the registrar, auto-renew ON, WHOIS privacy ON).
+  Nameservers are on Cloudflare, and it is the custom domain of the Pages project. `.me` lapses.
+- **Cloudflare Pages** project `nacurena-os` (direct upload, ADR-006). `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID` live in the GitHub `production` environment, restricted to `main`.
 - **GitHub** `J41r0Ps`, email privacy ON, commits as `186018368+J41r0Ps@users.noreply.github.com`.
-- **Old repos:** `skil2-professional-portfolio` (archived) · `portfolio` → rename to
-  `portfolio-astro-v2` and **archive, don't delete** (trilingual case studies + authorship history).
-- **`J41r0Ps.github.io`** — created automatically by Namecheap's "free GitHub Pages" option
-  (`CNAME` + `README`). It currently serves the domain. Keep it until Slice 1 moves DNS to
-  Cloudflare; then remove the custom domain in its Pages settings and archive or delete it.
-- **Web3Forms** key (goes in `.env` and in Cloudflare build variables).
+- **Old repos:** `skil2-professional-portfolio` (archived) · `portfolio-astro-v2` (formerly
+  `portfolio`, archived and private; **don't delete**: trilingual case studies + authorship history).
+- **`J41r0Ps.github.io`** — retired. Namecheap's "free GitHub Pages" option created it, and it
+  served the domain until Slice 1 moved DNS to Cloudflare. The repository no longer exists.
+- **Web3Forms** key (goes in `.env` and on the CI `build` job; Cloudflare does not build, ADR-006).
 - **CV PDFs** EN/NL/ES, linking to `https://jaironacurena.com` (`/nl/`, `/es/`).
 
 ---
