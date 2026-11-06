@@ -280,6 +280,69 @@ Picsum or generated images, and dark by default instead of following the system 
   Telemetry is off in `~/.impeccable/config.json`, which is per machine and not in this repository,
   so it has to be repeated on a new machine.
 
+## ADR-010: Window manager UI
+
+**Context.** Slice 3 puts the domain on screen. The store must add no rules, the page must stay a
+static Server Component, and gestures must feel direct while the domain stays the only source of
+truth. Building it also exposed gaps in the domain itself.
+
+**Decision.**
+
+*Left clamp.* `minX = MIN_VISIBLE_TITLE_BAR_WIDTH - width`, where that constant is the window
+controls plus the grab strip (184). This resolves the ADR-009 consequence. INV-07 has its own
+formula, so `checkInvariants` still shares no logic with `fit`.
+
+*Resize from an edge is a domain command.* `fit` clamps position and size separately, so a left edge
+dragged past the minimum width pushed the whole window right. Keeping the opposite edge still is a
+rule, so `resizeWindowFromEdge` lives in the domain (INV-19).
+
+*New windows open beside the icons.* The cascade starts at 128, 16, because a window at the top-left
+corner hid every desktop icon. Moving the start could push a wide window's controls off a narrow
+screen, and `fit` only guarantees a grab strip, so a new window is moved back until all of it shows
+(INV-21). A test ties `CASCADE_ORIGIN_X` to `--icon-cell`.
+
+*Compact viewport is derived, not stored.* Below 768 px, `displayBounds` returns the viewport and
+move and resize are refused (INV-20), while `state` stays as it was. A stored `maximised` state would
+need rules for crossing 768 px both ways, for minimised windows and for reloads, and would lose the
+window's bounds on a rotate. Slice 12 replaces this with phone mode and can delete it.
+
+*Store: a factory in `src/os/store`, not a global.* Built on `zustand/vanilla`, handed down through
+context, so each test and each render gets its own store. `src/os/store` replaces the
+`infrastructure` folder of the brief, and there is no `application` layer yet, because a use case
+would only forward to a domain command.
+
+*Persistence: `subscribe`, not the `persist` middleware.* The state is a class, so `partialize`,
+`merge` and `version` would all need overriding, and `persist` writes on every `set`, which is every
+frame of a drag. A trailing 200 ms save with a `pagehide` flush is about as long and cannot skip
+validation. The schema version is in the key. Saving starts only inside `hydrate`, so the empty first
+state cannot overwrite a saved desktop.
+
+*Drag: pointer events, not GSAP Draggable.* Draggable owns the element's transform and has its own
+bounds, which puts a second source of truth beside the domain. Resize needs a pointer path anyway,
+so one small hook serves both. This narrows the "GSAP + Draggable" row in the brief: GSAP remains for
+window motion and boot.
+
+*Accessibility: non-modal `role="dialog"`.* Named with `aria-labelledby`, with no `aria-modal`, and
+Tab is not trapped, because the desktop behind stays usable. The WAI-ARIA APG only publishes the
+modal pattern, so we take its naming and focus rules and leave out the trap.
+
+*DOM focus follows the domain.* When a window closes, DOM focus goes to the window that INV-12
+focused, and to the opener only if no window is left, then to the app's icon if the opener is gone.
+Otherwise the domain and the browser would disagree about who receives keyboard input.
+
+*Motion runs off domain events.* Hydration emits none, so a reload never replays an opening. GSAP is
+loaded by dynamic import, and dependency-cruiser keeps it that way.
+
+**Consequences.**
+- Icons are `<button>`s until Slice 4 creates the app URLs, which is a temporary deviation from
+  DESIGN §4. Without JavaScript they do nothing, so the page keeps the name and contact links as
+  server-rendered HTML on the desktop until the real apps carry that content.
+- `@/` imports need the alias in `vitest.config.mts` as well as `tsconfig.json`.
+- A static `typeof import()` counts as a dependency in dependency-cruiser, so `motion.ts` declares
+  its own small interface instead.
+- Keyboard move and resize and the window switcher are not built. Maximise is the only non-drag
+  alternative for now (`docs/IDEAS.md`).
+
 ## Asset and dependency licence audit
 
 Audited 6 November 2026. "Commit" is the upstream revision the installed files were compared
@@ -319,6 +382,9 @@ Versions are the ones installed from `package-lock.json`.
 | `next` | 16.4.5 | MIT |
 | `react` | 19.3.1 | MIT |
 | `react-dom` | 19.3.1 | MIT |
+| `zustand` | 5.0.16 | MIT |
+| `@phosphor-icons/react` | 2.1.10 | MIT |
+| `gsap` | 3.15.0 | GSAP Standard License (free, not open source). 3.15.1 was two days old at install, so it was held back |
 
 ### npm dependencies: development only (never shipped in `out/`)
 
@@ -384,6 +450,4 @@ all are MIT, Apache-2.0, ISC, 0BSD or CC0-1.0. These need a note:
 
 | Item | Licence | Status |
 |---|---|---|
-| GSAP | GSAP Standard License (free, not open source) | Planned, verify at install |
-| Phosphor icons (`@phosphor-icons/react`) | MIT | Chosen in ADR-009, verify at install |
 | Simple Icons | Open licence; logos are trademarks used only to name the technology | Planned, verify at install |

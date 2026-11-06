@@ -63,9 +63,9 @@ export class Window implements WindowFields {
     return this.state !== "minimised";
   }
 
-  /** Derived, so a maximised window can never disagree with the current viewport (INV-14). */
+  /** Derived, so a window can never disagree with the current viewport (INV-14, INV-20). */
   displayBounds(viewport: Viewport): Bounds {
-    return this.state === "maximised" ? viewport.toBounds() : this.bounds;
+    return this.state === "maximised" || viewport.isCompact ? viewport.toBounds() : this.bounds;
   }
 
   withBounds(bounds: Bounds): Window {

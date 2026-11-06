@@ -14,5 +14,6 @@ export type DomainError =
   | { readonly code: "DuplicateWindowId"; readonly windowId: WindowId }
   | { readonly code: "WindowIsMinimised"; readonly windowId: WindowId }
   | { readonly code: "WindowNotNormal"; readonly windowId: WindowId }
+  | { readonly code: "ViewportIsCompact"; readonly windowId: WindowId }
   | { readonly code: "MalformedSnapshot" }
   | { readonly code: "SnapshotBreaksInvariants"; readonly violations: readonly InvariantViolation[] };

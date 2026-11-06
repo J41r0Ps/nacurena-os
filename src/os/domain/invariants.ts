@@ -3,6 +3,7 @@ import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
   TITLE_BAR_HEIGHT,
+  WINDOW_CONTROLS_WIDTH,
 } from "./constants";
 import type { WindowManagerSnapshot, WindowSnapshot } from "./snapshot";
 
@@ -22,14 +23,15 @@ export interface InvariantViolation {
   readonly windowId?: string;
 }
 
+/** Measures the part of the title bar that can start a drag, cut down to what the viewport shows. */
 const hasGrabStripInside = (
   window: WindowSnapshot,
   viewport: WindowManagerSnapshot["viewport"],
 ): boolean => {
-  const visibleWidth =
-    Math.min(window.x + window.width, viewport.width) - Math.max(window.x, 0);
+  const draggableEnd = window.x + window.width - WINDOW_CONTROLS_WIDTH;
+  const visibleDraggableWidth = Math.min(draggableEnd, viewport.width) - Math.max(window.x, 0);
   return (
-    visibleWidth >= GRAB_STRIP_WIDTH &&
+    visibleDraggableWidth >= GRAB_STRIP_WIDTH &&
     window.y >= 0 &&
     window.y + TITLE_BAR_HEIGHT <= viewport.height
   );

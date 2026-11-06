@@ -38,10 +38,12 @@ and the terrain wallpaper.
 - INV-04 keeps a focused window whenever one is visible, so "unfocused" only ever means behind it.
 - Unfocused content is never dimmed, so it keeps AA. Three cues change, so focus never relies on colour alone.
 - Keyboard focus is a separate 2 px `--focus-ring` with 2 px offset, on every interactive element.
+  Window controls and the window itself draw it inside (`-2 px`), because a window at the screen
+  edge would otherwise clip it.
 
-**Slice 3 must resolve:** `Viewport.fit` keeps only the rightmost 64 px on screen when a window is
-pushed left, and that strip is all control cells, leaving nothing to drag. The left clamp should
-keep the controls (120 px) plus the grab strip (64 px) visible, so `minX` becomes `184 - width`.
+**Left limit:** `Viewport.fit` keeps the controls (120 px) plus the grab strip (64 px) on screen, so
+`minX = 184 - width`, derived from named constants. A window pushed left can always be dragged back.
+Slice 3 resolved this; ADR-010 records it.
 
 ## 4. Desktop
 
@@ -52,9 +54,12 @@ keep the controls (120 px) plus the grab strip (64 px) visible, so `minX` become
   7.46:1 with no text shadow. Light theme: none darker than `mist-300`, `mist-900` labels, 7.53:1.
 - **Icons:** Phosphor duotone, 32 px, `--accent`. Label Geist 12/16, centred, two lines at most.
 - **Grid:** 96 × 96 px cells, 16 px from the edge, filling top to bottom, then left to right. Projects
-  and CV come first. Positions are fixed in v1.
+  and CV come first. Positions are fixed in v1. New windows open right of the first column
+  (`CASCADE_ORIGIN_X`), so a window never hides the icons when it opens.
 - **Behaviour:** an icon is a real link to the app's URL. One click or Enter opens it, because
-  recruiters on a website expect a click, and a link keeps working without JavaScript.
+  recruiters on a website expect a click, and a link keeps working without JavaScript. Until the
+  app URLs exist (Slice 4), icons are `<button>`s, because a link with no real target misleads
+  crawlers and screen readers (ADR-010). The second click of a double-click is ignored.
 - **Taskbar:** 48 px, full width, solid `--surface-sunken`, 1 px `--border` on top. Not part of the viewport.
   - Left: start button ("Jn" logo), pinned Projects, then open apps, left-aligned.
   - Right: **Download CV** with a text label, language, theme, clock (Geist Mono, tabular figures).
@@ -98,6 +103,7 @@ Errors use an icon and text, no new hue. If Mail needs more, that is a new ADR.
 --radius-control: 4px;   /* buttons, inputs, icon cells, taskbar buttons */
 --radius-window: 6px;    /* windows, menus. Nothing larger, no pills */
 --titlebar-h: 32px;      /* must equal TITLE_BAR_HEIGHT */
+--control-w: 40px;       /* must equal WINDOW_CONTROL_WIDTH */
 --taskbar-h: 48px;
 --icon-cell: 96px;
 /* Dark. Light uses rgb(29 42 39) at .10/.16 and .08 */
@@ -135,7 +141,10 @@ is the only loop, and under reduced motion it is one still frame.
 
 - CSS transitions for hover and press. GSAP for windows and boot, because targets are measured at
   runtime and tweens must retarget. `CustomEase` carries the same curves; `gsap.matchMedia()` holds
-  the reduced-motion branch.
+  the reduced-motion branch. Drag and resize use plain pointer events, not Draggable (ADR-010).
+- GSAP loads by dynamic import after mount, so it stays out of First Load JS. If it is late, a
+  window simply appears, which motion rules allow because an animation never gates state.
+- GSAP animates an inner wrapper. React owns the outer element's transform, and the two would fight.
 - Interruptible: `overwrite: "auto"`, starting from the current value, never a fixed one.
 - On close, the domain removes the window and focus moves at once. The exit plays on a leftover
   element marked `inert`, which is then deleted.

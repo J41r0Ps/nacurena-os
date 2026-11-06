@@ -1,32 +1,37 @@
+import { Desktop } from "@/ui/desktop/Desktop";
+
 const links = [
   { label: "GitHub", href: "https://github.com/J41r0Ps" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/jairo-nacurena/" },
   { label: "Email", href: "mailto:jaironacurenaturnhout01@gmail.com" },
 ];
 
-// No "use client": this page has no state, effects or event handlers, so it
-// stays a Server Component and becomes plain HTML at build time.
+// No "use client": this page has no state, effects or event handlers, so it stays a Server
+// Component. Only <Desktop> runs in the browser. The block below is passed in as `children`, so it
+// is plain HTML that works without JavaScript, even though a client component places it.
+// It stays until the real apps carry this content (Slices 6 and 8).
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-6 px-6 py-16">
-      <h1 className="font-display text-5xl font-bold tracking-tight sm:text-7xl">
-        Jairo Nacurena
-      </h1>
-      <p className="font-mono text-accent">NacurenaOS — coming soon</p>
-      <nav aria-label="Contact">
-        <ul className="flex flex-wrap gap-6">
-          {links.map(({ label, href }) => (
-            <li key={href}>
-              <a
-                href={href}
-                className="underline underline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-              >
-                {label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <main>
+      <Desktop>
+        <div className="absolute top-4 right-4 flex flex-col items-end gap-1 text-right">
+          <h1 className="font-display text-title font-medium">Jairo Nacurena</h1>
+          <nav aria-label="Contact">
+            <ul className="flex gap-3 text-ui text-muted">
+              {links.map(({ label, href }) => (
+                <li key={href}>
+                  <a
+                    href={href}
+                    className="focus-ring underline underline-offset-4 hover:text-text"
+                  >
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+      </Desktop>
     </main>
   );
 }

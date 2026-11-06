@@ -18,9 +18,9 @@ export class Position {
 
   static readonly ORIGIN = new Position(0, 0);
 
-  /** Moves down and right from here. Only for the small whole offsets of the cascade. */
-  offsetBy(distance: number): Position {
-    return new Position(this.x + distance, this.y + distance);
+  /** Moves right and down from here. Only for the small whole offsets of the cascade. */
+  offsetBy(dx: number, dy: number = dx): Position {
+    return new Position(this.x + dx, this.y + dy);
   }
 
   /** Clamping valid whole numbers to whole limits stays valid, so this cannot fail. */

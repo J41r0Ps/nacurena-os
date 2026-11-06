@@ -110,7 +110,8 @@ describe("state invariants", () => {
 
     // The window is 640 × 480 in a 1280 × 720 viewport.
     expect(moveTo(99_999, 99_999)).toMatchObject({ x: 1216, y: 688 });
-    expect(moveTo(-99_999, -99_999)).toMatchObject({ x: -576, y: 0 });
+    // Left limit: the right edge stops at 184, so the controls (120) and a grab strip (64) stay.
+    expect(moveTo(-99_999, -99_999)).toMatchObject({ x: -456, y: 0 });
 
     const resized = after(manager.resizeWindow(id("a"), bounds(5000, 5000, 400, 300)));
     expect(windowOf(resized, id("a")).bounds).toMatchObject({ x: 1216, y: 688 });
@@ -291,6 +292,96 @@ describe("transition invariants", () => {
     expect(Object.isFrozen(manager.windows)).toBe(true);
     expect(Object.isFrozen(manager.windows[0])).toBe(true);
   });
+
+  // The window starts at 100, 100 and is 640 × 480, so its right edge is 740 and its bottom 580.
+  describe("INV-19: resizing from an edge never moves the opposite edge", () => {
+    const start = bounds(100, 100, 640, 480);
+    const manager = after(
+      after(desktopWith("a").moveWindow(id("a"), start.position)).resizeWindow(id("a"), start),
+    );
+    const resize = (...gesture: [Parameters<WindowManager["resizeWindowFromEdge"]>[2], number, number]) =>
+      windowOf(after(manager.resizeWindowFromEdge(id("a"), start, ...gesture)), id("a")).bounds;
+
+    it("follows the pointer inside the limits", () => {
+      expect(resize("e", 50, 999)).toMatchObject({ x: 100, y: 100, width: 690, height: 480 });
+      expect(resize("s", 999, 50)).toMatchObject({ x: 100, y: 100, width: 640, height: 530 });
+      expect(resize("w", -50, 999)).toMatchObject({ x: 50, y: 100, width: 690, height: 480 });
+      expect(resize("n", 999, -50)).toMatchObject({ x: 100, y: 50, width: 640, height: 530 });
+      expect(resize("nw", -10, -20)).toMatchObject({ x: 90, y: 80, width: 650, height: 500 });
+      expect(resize("se", 10, 20)).toMatchObject({ x: 100, y: 100, width: 650, height: 500 });
+    });
+
+    it("stops the left edge at the minimum width instead of pushing the window right", () => {
+      expect(resize("w", 9999, 0)).toMatchObject({ x: 420, width: 320 });
+    });
+
+    it("stops the top edge at the viewport instead of pushing the bottom down", () => {
+      expect(resize("n", 0, -9999)).toMatchObject({ y: 0, height: 580 });
+    });
+
+    it("stops the top edge at the minimum height", () => {
+      expect(resize("n", 0, 9999)).toMatchObject({ y: 380, height: 200 });
+    });
+
+    it("stops the right and bottom edges at the minimum size", () => {
+      expect(resize("se", -9999, -9999)).toMatchObject({ x: 100, y: 100, width: 320, height: 200 });
+    });
+
+    it("stops the right edge at the left limit of a window pushed off screen", () => {
+      const pushed = bounds(-400, 0, 640, 480);
+      const moved = after(manager.moveWindow(id("a"), pushed.position));
+      const shrunk = after(moved.resizeWindowFromEdge(id("a"), pushed, "e", -9999, 0));
+
+      expect(windowOf(shrunk, id("a")).bounds).toMatchObject({ x: -400, width: 584 });
+    });
+
+    it("refuses distances that are not whole numbers", () => {
+      expect(manager.resizeWindowFromEdge(id("a"), start, "e", 0.5, 0).ok).toBe(false);
+    });
+  });
+
+  describe("INV-20: a compact viewport fills with every window and allows no moving", () => {
+    const wide = after(desktopWith("a").moveWindow(id("a"), position(100, 100)));
+    const compact = after(wide.resizeViewport(viewport(767, 600)));
+    const window = windowOf(compact, id("a"));
+
+    it("starts at 768 px, not above", () => {
+      expect(viewport(767, 600).isCompact).toBe(true);
+      expect(viewport(768, 600).isCompact).toBe(false);
+    });
+
+    it("displays a normal window over the whole viewport without storing that", () => {
+      expect(window.state).toBe("normal");
+      expect(window.displayBounds(compact.viewport).equals(compact.viewport.toBounds())).toBe(true);
+    });
+
+    it("gives a window opened in a compact viewport the same display", () => {
+      const opened = after(
+        WindowManager.create(viewport(375, 700)).openApp(multi, () => id("phone")),
+      );
+      const displayed = windowOf(opened, id("phone")).displayBounds(opened.viewport);
+
+      expect(displayed).toMatchObject({ x: 0, y: 0, width: 375, height: 700 });
+    });
+
+    it("refuses move and resize", () => {
+      const refused = { ok: false, error: { code: "ViewportIsCompact", windowId: "a" } };
+
+      expect(compact.moveWindow(id("a"), position(1, 1))).toEqual(refused);
+      expect(compact.resizeWindow(id("a"), bounds(1, 1, 400, 300))).toEqual(refused);
+      expect(
+        compact.resizeWindowFromEdge(id("a"), window.bounds, "e", 10, 0),
+      ).toEqual(refused);
+    });
+
+    it("brings back the stored bounds when the viewport grows again", () => {
+      const before = windowOf(wide, id("a")).bounds;
+      const widened = after(compact.resizeViewport(viewport()));
+      const restored = windowOf(widened, id("a"));
+
+      expect(restored.displayBounds(widened.viewport).equals(before)).toBe(true);
+    });
+  });
 });
 
 describe("commands the UI should never send", () => {
@@ -300,6 +391,10 @@ describe("commands the UI should never send", () => {
     ["focusWindow", (m: WindowManager) => m.focusWindow(ghost)],
     ["moveWindow", (m: WindowManager) => m.moveWindow(ghost, position(0, 0))],
     ["resizeWindow", (m: WindowManager) => m.resizeWindow(ghost, bounds(0, 0, 400, 300))],
+    [
+      "resizeWindowFromEdge",
+      (m: WindowManager) => m.resizeWindowFromEdge(ghost, bounds(0, 0, 400, 300), "e", 1, 0),
+    ],
     ["minimiseWindow", (m: WindowManager) => m.minimiseWindow(ghost)],
     ["maximiseWindow", (m: WindowManager) => m.maximiseWindow(ghost)],
     ["restoreWindow", (m: WindowManager) => m.restoreWindow(ghost)],
@@ -339,9 +434,29 @@ describe("opening windows", () => {
       manager = after(manager.openApp(multi, ids));
     }
 
-    expect(manager.windows[0].bounds).toMatchObject({ x: 0, y: 0 });
-    expect(manager.windows[1].bounds).toMatchObject({ x: 32, y: 32 });
-    expect(manager.windows[8].bounds).toMatchObject({ x: 0, y: 0 });
+    expect(manager.windows[0].bounds).toMatchObject({ x: 128, y: 16 });
+    expect(manager.windows[1].bounds).toMatchObject({ x: 160, y: 48 });
+    expect(manager.windows[8].bounds).toMatchObject({ x: 128, y: 16 });
+  });
+
+  it("INV-21: moves a new window back until all of it is on screen", () => {
+    // 640 × 480 at the cascade start would end at x 768 in a 700 px wide viewport.
+    const narrow = WindowManager.create(viewport(768, 500));
+    const opened = after(narrow.openApp(multi, () => id("a")));
+
+    expect(opened.windows[0].bounds).toMatchObject({ x: 128, y: 16 });
+
+    const tight = WindowManager.create(viewport(700, 490));
+    const moved = after(tight.openApp(multi, () => id("a")));
+
+    expect(moved.windows[0].bounds).toMatchObject({ x: 60, y: 10 });
+  });
+
+  it("INV-21: opens at the corner when the window is as large as the viewport", () => {
+    const exact = WindowManager.create(viewport(640, 480));
+    const opened = after(exact.openApp(multi, () => id("a")));
+
+    expect(opened.windows[0].bounds).toMatchObject({ x: 0, y: 0 });
   });
 
   it("shrinks a default size that does not fit the viewport", () => {

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -14,6 +15,8 @@ export default defineConfig({
       },
       {
         plugins: [react()],
+        // Mirrors the "@/" path in tsconfig.json, which Vitest does not read by itself.
+        resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
         test: {
           name: "ui",
           environment: "jsdom",

@@ -1,6 +1,6 @@
 import type { AppDefinition } from "./AppDefinition";
 import { Bounds } from "./Bounds";
-import { CASCADE_LENGTH, CASCADE_STEP } from "./constants";
+import { CASCADE_LENGTH, CASCADE_ORIGIN_X, CASCADE_ORIGIN_Y, CASCADE_STEP } from "./constants";
 import type { DomainError } from "./errors";
 import type { DomainEvent } from "./events";
 import { createAppId, createWindowId, type WindowId, type WindowIdGenerator } from "./ids";
@@ -8,7 +8,7 @@ import { checkInvariants } from "./invariants";
 import { Position } from "./Position";
 import { err, ok, type Result } from "./result";
 import { isWindowManagerSnapshot, type WindowManagerSnapshot } from "./snapshot";
-import { Viewport } from "./Viewport";
+import { Viewport, type ResizeEdge } from "./Viewport";
 import { Window } from "./Window";
 
 export interface CommandOutcome {
@@ -115,7 +115,8 @@ export class WindowManager {
 
     const offset = CASCADE_STEP * (this.windows.length % CASCADE_LENGTH);
     const size = app.defaultSize.atMost(this.viewport.width, this.viewport.height);
-    const bounds = this.viewport.fit(Bounds.of(Position.ORIGIN.offsetBy(offset), size));
+    const start = Position.ORIGIN.offsetBy(CASCADE_ORIGIN_X + offset, CASCADE_ORIGIN_Y + offset);
+    const bounds = this.viewport.fit(Bounds.of(this.viewport.keepingOnScreen(start, size), size));
     const window = Window.open(id, app, bounds, nextZOrder(this.windows));
 
     return ok({
@@ -160,6 +161,21 @@ export class WindowManager {
       manager: this.withWindows(this.replace(window.value.withBounds(resized))),
       events: [{ type: "WindowResized", windowId: id }],
     });
+  }
+
+  /**
+   * Resizes from a held edge or corner. `start` is where the gesture began and `dx`, `dy` are the
+   * total distance so far, so a pointer that goes past a limit and comes back rejoins the edge.
+   */
+  resizeWindowFromEdge(
+    id: WindowId,
+    start: Bounds,
+    edge: ResizeEdge,
+    dx: number,
+    dy: number,
+  ): CommandResult {
+    const requested = this.viewport.resizedFromEdge(start, edge, dx, dy);
+    return requested.ok ? this.resizeWindow(id, requested.value) : requested;
   }
 
   minimiseWindow(id: WindowId): CommandResult {
@@ -253,6 +269,7 @@ export class WindowManager {
   private findNormalWindow(id: WindowId): Result<Window, DomainError> {
     const window = this.findWindow(id);
     if (!window.ok) return window;
+    if (this.viewport.isCompact) return err({ code: "ViewportIsCompact", windowId: id });
     return window.value.state === "normal"
       ? window
       : err({ code: "WindowNotNormal", windowId: id });

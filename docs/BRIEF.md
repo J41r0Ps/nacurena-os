@@ -95,7 +95,7 @@ Adding a project must be **one data entry** (+ optional icon), never a code chan
 |---|---|---|
 | **Domain discovery / ubiquitous language** | ✅ | Event-storming-lite of the OS domain: App, Window, Desktop, Taskbar, Focus, Workspace. Glossary in `docs/DOMAIN.md` |
 | **Entities, value objects, aggregates, invariants** | ✅ | `WindowManager` is the aggregate root. Value objects: `Position`, `Size`, `Bounds` (immutable, validated). Invariants: exactly one focused window or none · z-order values unique · a minimised window is never focused · a window always stays reachable inside the viewport · one instance per single-instance app |
-| **Clean Architecture (dependencies point inward)** | ✅ | `src/os/domain` = pure TypeScript, no React, no browser APIs · `src/os/application` = use cases (`openApp`, `focusWindow`, `closeWindow`, `minimise`, `restoreSession`) · `src/os/infrastructure` = Zustand store adapter, localStorage · `src/ui` = React components. **Architecture tests** enforce the direction |
+| **Clean Architecture (dependencies point inward)** | ✅ | `src/os/domain` = pure TypeScript, no React, no browser APIs · `src/os/store` = Zustand store adapter, localStorage (ADR-010) · `src/ui` = React components. **Architecture tests** enforce the direction |
 | **Vertical slices / use cases** | ✅ | Each build slice delivers one working behaviour end to end (domain → use case → store → UI → test) |
 | **Branching** | ⚪ simplified | **Solo trunk-based: all work on `main`.** No feature branches, no PRs. Gitflow is practised in the course itself; here the safety net is CI: every push runs all checks and deploys only if they pass. Releases are tagged (`v1.0.0`) |
 | **GitHub Actions CI/CD + quality gates** | ✅ | Parallel checks (lint, typecheck, unit + component tests, build, Semgrep) → one **merge gate** required by branch protection → deploy. `develop` → preview environment, `main` → production. **Cloudflare Pages**, same host as the course |
@@ -148,7 +148,7 @@ What does apply:
 | Framework | **Next.js (App Router), static export**, TypeScript strict | Most requested React framework; static HTML per page and language |
 | UI | **React** + **Tailwind CSS 4** | Known; design tokens for the brand |
 | State | **Zustand** | Closes a profile gap; thin adapter over the pure domain |
-| Animation | **GSAP** (+ **Draggable**) | Boot sequence, window transitions, dragging. Free for commercial use under GSAP's Standard License (not open source — recorded in the licence audit) |
+| Animation | **GSAP** | Boot sequence, window transitions. Dragging uses plain pointer events (ADR-010). Free for commercial use under GSAP's Standard License (not open source — recorded in the licence audit) |
 | i18n | **next-intl** | Locale routing + typed messages |
 | Wallpaper | Small WebGL fragment-shader canvas (no Three.js) | Signature visual without the R3F/React version pin from v2 |
 | Icons | Phosphor or Lucide (UI) · **Simple Icons** (tech logos) | Open licences; logos used only to name the technology |
@@ -177,8 +177,7 @@ nacurena-os/
 ├── src/
 │   ├── os/
 │   │   ├── domain/           # pure TS: WindowManager, value objects, invariants
-│   │   ├── application/      # use cases
-│   │   └── infrastructure/   # Zustand store, persistence
+│   │   └── store/            # Zustand adapter, persistence
 │   ├── apps/                 # one folder per app (explorer, terminal, map, mail…)
 │   ├── ui/                   # window chrome, taskbar, start menu, primitives
 │   └── app/[locale]/         # Next.js routes

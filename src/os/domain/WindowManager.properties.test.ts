@@ -12,6 +12,7 @@ import {
   viewport,
   windowId,
 } from "./testSupport";
+import type { ResizeEdge } from "./Viewport";
 import { WindowManager, type CommandResult } from "./WindowManager";
 
 // A property test does not check one example. It generates long random command sequences and
@@ -35,6 +36,13 @@ type Command =
       readonly y: number;
       readonly width: number;
       readonly height: number;
+    }
+  | {
+      readonly kind: "edge";
+      readonly target: Target;
+      readonly edge: ResizeEdge;
+      readonly dx: number;
+      readonly dy: number;
     }
   | { readonly kind: "viewport"; readonly width: number; readonly height: number };
 
@@ -79,6 +87,17 @@ const command: fc.Arbitrary<Command> = fc.oneof(
       .map((fields) => ({ kind: "resize" as const, ...fields })),
   },
   {
+    weight: 3,
+    arbitrary: fc
+      .record({
+        target,
+        edge: fc.constantFrom<ResizeEdge>("n", "e", "s", "w", "ne", "se", "sw", "nw"),
+        dx: coordinate,
+        dy: coordinate,
+      })
+      .map((fields) => ({ kind: "edge" as const, ...fields })),
+  },
+  {
     weight: 1,
     arbitrary: fc
       .record({
@@ -121,6 +140,11 @@ const run = (
         resolve(manager, step.target),
         bounds(step.x, step.y, step.width, step.height),
       );
+    case "edge": {
+      const id = resolve(manager, step.target);
+      const start = manager.windows.find((w) => w.id === id)?.bounds ?? bounds(0, 0, 400, 300);
+      return manager.resizeWindowFromEdge(id, start, step.edge, step.dx, step.dy);
+    }
     case "viewport":
       return manager.resizeViewport(viewport(step.width, step.height));
   }
@@ -154,6 +178,16 @@ const checkTransitionRules = (
       count("opened a new window");
       expect(afterwards.windows).toHaveLength(before.windows.length + 1);
       expect(afterwards.focusedWindowId).toBe(afterwards.windows.at(-1)?.id); // INV-10
+
+      const { bounds: opened } = afterwards.windows.at(-1)!;
+      const { width, height } = afterwards.viewport;
+      if (opened.width <= width && opened.height <= height) {
+        count("opened a window that fits");
+        expect(opened.x).toBeGreaterThanOrEqual(0); // INV-21
+        expect(opened.y).toBeGreaterThanOrEqual(0); // INV-21
+        expect(opened.x + opened.width).toBeLessThanOrEqual(width); // INV-21
+        expect(opened.y + opened.height).toBeLessThanOrEqual(height); // INV-21
+      }
     } else {
       const existing = before.windows.find((w) => w.appId === apps[step.app].id);
       count(`reopened a ${existing?.state} single-instance app`);
@@ -187,6 +221,27 @@ const checkTransitionRules = (
     for (const window of afterwards.windows) {
       const previous = before.windows.find((w) => w.id === window.id);
       expect(previous !== undefined && previous.bounds.equals(window.bounds)).toBe(true); // INV-15
+    }
+  }
+
+  if (step.kind === "edge" && target !== undefined && target !== null) {
+    const resized = afterwards.windows.find((w) => w.id === target.id);
+    if (resized !== undefined && !resized.bounds.equals(target.bounds)) {
+      count("resized from an edge");
+      const was = target.bounds;
+      const now = resized.bounds;
+      // INV-19: every edge the gesture does not hold stays exactly where it was.
+      if (!step.edge.includes("w")) expect(now.x).toBe(was.x);
+      if (!step.edge.includes("n")) expect(now.y).toBe(was.y);
+      if (!step.edge.includes("e")) expect(now.x + now.width).toBe(was.x + was.width);
+      if (!step.edge.includes("s")) expect(now.y + now.height).toBe(was.y + was.height);
+    }
+  }
+
+  if (afterwards.viewport.isCompact) {
+    for (const window of afterwards.windows) {
+      const displayed = window.displayBounds(afterwards.viewport);
+      expect(displayed.equals(afterwards.viewport.toBounds())).toBe(true); // INV-20
     }
   }
 
@@ -248,6 +303,7 @@ describe("WindowManager under random command sequences", () => {
         "changed: resize",
         "changed: viewport",
         "opened a new window",
+        "opened a window that fits",
         "reopened a normal single-instance app",
         "reopened a minimised single-instance app",
         "reopened a maximised single-instance app",
@@ -260,9 +316,32 @@ describe("WindowManager under random command sequences", () => {
         "rejected: UnknownWindow",
         "rejected: WindowIsMinimised",
         "rejected: WindowNotNormal",
+        "rejected: ViewportIsCompact",
+        "resized from an edge",
       ]),
     );
   }, 120_000);
+
+  it("leaves a grab strip beside the controls wherever a window is dragged", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: -9000, max: 9000 }),
+        fc.integer({ min: 320, max: 3000 }),
+        (x, width) => {
+          const id = windowId("a");
+          const opened = after(emptyManager().openApp(apps[2], () => id));
+          const start = opened.windows[0].bounds;
+          const wide = after(opened.resizeWindow(id, bounds(start.x, start.y, width, 300)));
+          const { bounds: moved } = after(wide.moveWindow(id, position(x, 0))).windows[0];
+
+          // Written out by hand: 120 px of controls at the right end of the title bar.
+          const dragStart = Math.max(moved.x, 0);
+          const dragEnd = Math.min(moved.x + moved.width - 120, 1280);
+          expect(dragEnd - dragStart).toBeGreaterThanOrEqual(64);
+        },
+      ),
+    );
+  });
 
   it("always keeps the bounds across maximise and restore", () => {
     fc.assert(

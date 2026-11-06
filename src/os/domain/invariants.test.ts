@@ -67,6 +67,11 @@ const broken: readonly [StateInvariant, string, WindowManagerSnapshot][] = [
   ],
   [
     "INV-07",
+    "only the control cells and 63 px of title bar left on screen",
+    { ...valid, windows: [valid.windows[0], window({ id: "b", zOrder: 1, x: -217 })] },
+  ],
+  [
+    "INV-07",
     "a title bar above the viewport",
     { ...valid, windows: [valid.windows[0], window({ id: "b", zOrder: 1, y: -1 })] },
   ],
@@ -109,6 +114,11 @@ const broken: readonly [StateInvariant, string, WindowManagerSnapshot][] = [
 describe("checkInvariants", () => {
   it("finds nothing wrong with a valid state", () => {
     expect(checkInvariants(valid)).toEqual([]);
+  });
+
+  it("accepts a window pushed exactly to the left limit", () => {
+    const atLimit = window({ id: "b", zOrder: 1, x: 184 - 400 });
+    expect(checkInvariants({ ...valid, windows: [valid.windows[0], atLimit] })).toEqual([]);
   });
 
   it("finds nothing wrong with an empty desktop", () => {
